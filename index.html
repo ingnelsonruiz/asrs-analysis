@@ -1,0 +1,1387 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ASRS Human Error Analysis — Static</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --navy:   #1e3a5f;
+      --navy-l: #2d5080;
+      --blue:   #3b82f6;
+      --blue-l: #dbeafe;
+      --teal:   #0d9488;
+      --teal-l: #ccfbf1;
+      --amber:  #d97706;
+      --amber-l:#fef3c7;
+      --red:    #dc2626;
+      --red-l:  #fee2e2;
+      --purple: #7c3aed;
+      --purple-l:#ede9fe;
+      --coral:  #f97316;
+      --green:  #16a34a;
+      --green-l:#dcfce7;
+      --gray-50:#f9fafb; --gray-100:#f3f4f6; --gray-200:#e5e7eb;
+      --gray-300:#d1d5db; --gray-400:#9ca3af; --gray-500:#6b7280;
+      --gray-600:#4b5563; --gray-700:#374151; --gray-800:#1f2937;
+      --radius: 10px; --shadow: 0 1px 4px rgba(0,0,0,.08), 0 4px 16px rgba(0,0,0,.06);
+      --font: 'Inter', system-ui, sans-serif;
+      --mono: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 16px; scroll-behavior: smooth; }
+    body { font-family: var(--font); background: var(--gray-50); color: var(--gray-800); min-height: 100vh; }
+
+    /* ── HEADER ── */
+    header {
+      background: var(--navy);
+      color: #fff;
+      padding: 0 2rem;
+      position: sticky; top: 0; z-index: 100;
+      box-shadow: 0 2px 8px rgba(0,0,0,.3);
+    }
+    .header-inner { max-width: 1400px; margin: 0 auto; display: flex; align-items: center; gap: 1.5rem; height: 60px; }
+    .logo { font-size: 1.25rem; font-weight: 700; letter-spacing: -.5px; white-space: nowrap; }
+    .logo span { color: var(--blue); }
+    nav { flex: 1; display: flex; gap: .25rem; overflow-x: auto; padding: .5rem 0; }
+    nav::-webkit-scrollbar { height: 2px; } nav::-webkit-scrollbar-thumb { background: var(--navy-l); }
+    .nav-btn {
+      background: none; border: none; color: rgba(255,255,255,.65);
+      padding: .4rem .85rem; border-radius: 6px; font: 500 .82rem var(--font);
+      cursor: pointer; white-space: nowrap; transition: all .15s;
+    }
+    .nav-btn:hover { background: rgba(255,255,255,.1); color: #fff; }
+    .nav-btn.active { background: rgba(59,130,246,.3); color: #fff; }
+    .nav-btn:disabled { opacity: .35; cursor: not-allowed; }
+    .status-pill {
+      display: flex; align-items: center; gap: .4rem;
+      background: rgba(255,255,255,.08); border-radius: 20px;
+      padding: .3rem .75rem; font: 500 .76rem var(--font);
+      color: rgba(255,255,255,.8); white-space: nowrap;
+    }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--gray-400); }
+    .status-dot.ready { background: var(--green); box-shadow: 0 0 0 2px rgba(22,163,74,.25); }
+    .status-dot.loading { background: var(--amber); animation: pulse 1s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+    /* ── MAIN ── */
+    main { max-width: 1400px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── CARDS ── */
+    .card {
+      background: #fff; border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 1.5rem;
+    }
+    .card-title { font-size: .875rem; font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: .05em; margin-bottom: .5rem; }
+    .card-value { font-size: 2.2rem; font-weight: 700; color: var(--gray-800); line-height: 1; }
+    .card-sub { font-size: .8rem; color: var(--gray-500); margin-top: .35rem; }
+
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+    .charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1.25rem; }
+    .chart-box { background: #fff; border-radius: var(--radius); box-shadow: var(--shadow); padding: 1.25rem; }
+    .chart-box h3 { font-size: .9rem; font-weight: 600; color: var(--gray-700); margin-bottom: 1rem; }
+    .chart-wrap { position: relative; height: 260px; }
+    .chart-wrap-lg { position: relative; height: 360px; }
+    .chart-wrap-xl { position: relative; height: 460px; }
+
+    /* ── UPLOAD ── */
+    #tab-upload { max-width: 680px; margin: 4rem auto; text-align: center; }
+    .upload-title { font-size: 2rem; font-weight: 700; color: var(--navy); margin-bottom: .5rem; }
+    .upload-sub { color: var(--gray-500); margin-bottom: 2rem; font-size: 1rem; }
+    .drop-zone {
+      border: 2.5px dashed var(--gray-300); border-radius: 16px;
+      padding: 3rem 2rem; cursor: pointer; transition: all .2s;
+      background: #fff;
+    }
+    .drop-zone:hover, .drop-zone.drag-over { border-color: var(--blue); background: var(--blue-l); }
+    .drop-icon { font-size: 3rem; margin-bottom: 1rem; }
+    .drop-label { font-size: 1rem; color: var(--gray-600); margin-bottom: .5rem; }
+    .drop-hint { font-size: .8rem; color: var(--gray-400); font-family: var(--mono); }
+    #file-input { display: none; }
+    .btn-upload {
+      display: inline-block; margin-top: 1.25rem;
+      background: var(--blue); color: #fff; border: none;
+      padding: .65rem 1.75rem; border-radius: 8px;
+      font: 600 .9rem var(--font); cursor: pointer; transition: background .15s;
+    }
+    .btn-upload:hover { background: #2563eb; }
+    .format-guide { margin-top: 2rem; text-align: left; background: #fff; border-radius: var(--radius); padding: 1.25rem; box-shadow: var(--shadow); }
+    .format-guide h4 { font-size: .85rem; font-weight: 600; color: var(--gray-700); margin-bottom: .75rem; }
+    .format-guide ul { list-style: none; }
+    .format-guide li { font-size: .8rem; color: var(--gray-500); padding: .25rem 0; padding-left: 1rem; position: relative; }
+    .format-guide li::before { content: '·'; position: absolute; left: 0; color: var(--blue); }
+
+    /* ── PROGRESS ── */
+    .progress-bar { height: 4px; background: var(--gray-200); border-radius: 2px; overflow: hidden; margin: 1rem 0; }
+    .progress-fill { height: 100%; background: var(--blue); border-radius: 2px; transition: width .3s; }
+    .processing-msg { font-size: .85rem; color: var(--gray-500); margin-top: .5rem; }
+
+    /* ── BADGE / TAGS ── */
+    .badge { display: inline-flex; align-items: center; gap: .3rem; padding: .2rem .6rem; border-radius: 20px; font: 600 .72rem var(--font); }
+    .badge-blue { background: var(--blue-l); color: var(--blue); }
+    .badge-teal { background: var(--teal-l); color: var(--teal); }
+    .badge-amber { background: var(--amber-l); color: var(--amber); }
+    .badge-red { background: var(--red-l); color: var(--red); }
+    .badge-purple { background: var(--purple-l); color: var(--purple); }
+    .badge-green { background: var(--green-l); color: var(--green); }
+
+    /* ── RISK TABLE ── */
+    .table-wrap { overflow-x: auto; margin-top: 1rem; }
+    table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+    th { background: var(--gray-100); color: var(--gray-600); text-align: left; padding: .6rem .75rem; font-weight: 600; font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; border-bottom: 2px solid var(--gray-200); }
+    td { padding: .55rem .75rem; border-bottom: 1px solid var(--gray-100); color: var(--gray-700); vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--gray-50); }
+
+    /* ── MITIGATION CARDS ── */
+    .mit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.25rem; }
+    .mit-card { background: #fff; border-radius: var(--radius); box-shadow: var(--shadow); padding: 1.5rem; border-left: 4px solid var(--blue); }
+    .mit-card.amber { border-left-color: var(--amber); }
+    .mit-card.teal  { border-left-color: var(--teal); }
+    .mit-card.red   { border-left-color: var(--red); }
+    .mit-card.purple{ border-left-color: var(--purple); }
+    .mit-card h3 { font-size: .9rem; font-weight: 700; color: var(--gray-800); margin-bottom: .75rem; }
+    .mit-card p { font-size: .82rem; color: var(--gray-600); margin-bottom: .75rem; line-height: 1.55; }
+    .mit-card ul { list-style: none; }
+    .mit-card li { font-size: .8rem; color: var(--gray-700); padding: .3rem 0; padding-left: 1.25rem; position: relative; }
+    .mit-card li::before { content: '→'; position: absolute; left: 0; color: var(--blue); font-weight: 700; }
+    .mit-card.amber li::before { color: var(--amber); }
+    .mit-card.teal  li::before { color: var(--teal); }
+    .mit-card.red   li::before { color: var(--red); }
+    .mit-card.purple li::before { color: var(--purple); }
+
+    /* ── CLUSTER INFO ── */
+    .cluster-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: .75rem; margin-top: 1.25rem; }
+    .cluster-card { border-radius: 8px; padding: .9rem 1rem; background: var(--gray-50); border: 1px solid var(--gray-200); }
+    .cluster-card h4 { font-size: .8rem; font-weight: 700; margin-bottom: .4rem; }
+    .cluster-card .terms { font-size: .72rem; color: var(--gray-500); font-family: var(--mono); }
+
+    /* ── SECTION HEADER ── */
+    .section-header { margin-bottom: 1.5rem; }
+    .section-header h2 { font-size: 1.35rem; font-weight: 700; color: var(--gray-800); }
+    .section-header p { font-size: .875rem; color: var(--gray-500); margin-top: .25rem; }
+
+    /* ── EMPTY STATE ── */
+    .empty-state { text-align: center; padding: 4rem 2rem; color: var(--gray-400); }
+    .empty-state svg { margin-bottom: 1rem; opacity: .4; }
+    .empty-state p { font-size: .95rem; }
+
+    /* ── TOOLTIP ── */
+    .custom-tooltip { background: var(--gray-800); color: #fff; padding: .5rem .8rem; border-radius: 6px; font: 500 .78rem var(--font); pointer-events: none; }
+
+    @media (max-width: 640px) {
+      main { padding: 1rem .75rem 3rem; }
+      .header-inner { padding: 0 1rem; }
+      .kpi-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+<!-- ══════════════ HEADER ══════════════ -->
+<header>
+  <div class="header-inner">
+    <div class="logo">ASRS <span>Error Analysis</span></div>
+    <nav>
+      <button class="nav-btn active" onclick="switchTab('upload')" id="btn-upload">📂 Cargar</button>
+      <button class="nav-btn" onclick="switchTab('overview')" id="btn-overview" disabled>📊 Visión General</button>
+      <button class="nav-btn" onclick="switchTab('eda')" id="btn-eda" disabled>🔍 EDA</button>
+      <button class="nav-btn" onclick="switchTab('nlp')" id="btn-nlp" disabled>💬 NLP</button>
+      <button class="nav-btn" onclick="switchTab('clustering')" id="btn-clustering" disabled>🔮 Clustering</button>
+      <button class="nav-btn" onclick="switchTab('risk')" id="btn-risk" disabled>⚠️ ML / Riesgo</button>
+      <button class="nav-btn" onclick="switchTab('mitigation')" id="btn-mitigation" disabled>🛡️ Mitigación</button>
+    </nav>
+    <div class="status-pill">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="status-text">Sin datos</span>
+    </div>
+  </div>
+</header>
+
+<!-- ══════════════ MAIN ══════════════ -->
+<main>
+
+  <!-- ── UPLOAD ── -->
+  <div class="tab-panel active" id="tab-upload">
+    <div>
+      <div class="upload-title">ASRS Human Error Analysis</div>
+      <div class="upload-sub">Análisis estático · 100% en el navegador · sin servidor</div>
+      <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+        <div class="drop-icon">📋</div>
+        <div class="drop-label"><strong>Arrastra tu CSV aquí</strong> o haz clic para seleccionar</div>
+        <div class="drop-hint">Formato: ASRS export (NASA) · .csv · cualquier tamaño</div>
+        <button class="btn-upload" onclick="event.stopPropagation(); document.getElementById('file-input').click()">Seleccionar archivo</button>
+      </div>
+      <input type="file" id="file-input" accept=".csv" />
+      <div id="progress-area" style="display:none">
+        <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+        <div class="processing-msg" id="progress-msg">Cargando...</div>
+      </div>
+      <div class="format-guide">
+        <h4>📌 Columnas reconocidas automáticamente</h4>
+        <ul>
+          <li>Texto narrativo largo → NLP (TF-IDF, bigramas)</li>
+          <li>Columnas <code>Anomaly.*</code> → categorías de anomalía</li>
+          <li>Columnas <code>Human Factors.*</code> → factores humanos</li>
+          <li>Columnas <code>Phase of Flight.*</code> → fase del vuelo</li>
+          <li>Columna de fecha (Date / Month) → línea de tiempo</li>
+          <li>Cualquier CSV tabulado funciona · columnas extra se detectan</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── OVERVIEW ── -->
+  <div class="tab-panel" id="tab-overview">
+    <div class="section-header">
+      <h2>Visión General</h2>
+      <p id="overview-sub">Resumen del dataset cargado</p>
+    </div>
+    <div class="kpi-grid" id="kpi-grid"></div>
+    <div class="charts-grid">
+      <div class="chart-box">
+        <h3>Top Anomalías</h3>
+        <div class="chart-wrap"><canvas id="chart-anomaly"></canvas></div>
+      </div>
+      <div class="chart-box">
+        <h3>Factores Humanos</h3>
+        <div class="chart-wrap"><canvas id="chart-hf"></canvas></div>
+      </div>
+      <div class="chart-box">
+        <h3>Fase de Vuelo</h3>
+        <div class="chart-wrap"><canvas id="chart-phase"></canvas></div>
+      </div>
+      <div class="chart-box">
+        <h3>Distribución de Columna Categórica</h3>
+        <div class="chart-wrap"><canvas id="chart-cat"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── EDA ── -->
+  <div class="tab-panel" id="tab-eda">
+    <div class="section-header">
+      <h2>Análisis Exploratorio</h2>
+      <p>Distribuciones y evolución temporal</p>
+    </div>
+    <div class="chart-box" style="margin-bottom:1.25rem">
+      <h3>Reportes por Período</h3>
+      <div class="chart-wrap-lg"><canvas id="chart-timeline"></canvas></div>
+    </div>
+    <div class="charts-grid" id="eda-charts"></div>
+  </div>
+
+  <!-- ── NLP ── -->
+  <div class="tab-panel" id="tab-nlp">
+    <div class="section-header">
+      <h2>Análisis de Lenguaje Natural</h2>
+      <p>Extracción de términos clave y co-ocurrencias de los reportes narrativos</p>
+    </div>
+    <div class="charts-grid">
+      <div class="chart-box">
+        <h3>Términos Clave — TF-IDF (Top 20)</h3>
+        <div class="chart-wrap-xl"><canvas id="chart-tfidf"></canvas></div>
+      </div>
+      <div class="chart-box">
+        <h3>Bigramas Frecuentes (Top 15)</h3>
+        <div class="chart-wrap-xl"><canvas id="chart-bigrams"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── CLUSTERING ── -->
+  <div class="tab-panel" id="tab-clustering">
+    <div class="section-header">
+      <h2>Clustering de Reportes</h2>
+      <p>K-Means (k=5) sobre vectores TF-IDF · PCA 2D para visualización</p>
+    </div>
+    <div class="chart-box" style="margin-bottom:1.25rem">
+      <h3>Mapa de Clusters (PCA 2D)</h3>
+      <div class="chart-wrap-xl"><canvas id="chart-cluster-scatter"></canvas></div>
+    </div>
+    <div class="cluster-grid" id="cluster-info"></div>
+  </div>
+
+  <!-- ── RISK ── -->
+  <div class="tab-panel" id="tab-risk">
+    <div class="section-header">
+      <h2>Perfil de Riesgo</h2>
+      <p>Clasificación de reportes por nivel de riesgo basada en combinación de factores</p>
+    </div>
+    <div class="charts-grid" style="margin-bottom:1.25rem">
+      <div class="chart-box">
+        <h3>Distribución de Niveles de Riesgo</h3>
+        <div class="chart-wrap"><canvas id="chart-risk-dist"></canvas></div>
+      </div>
+      <div class="chart-box">
+        <h3>Factores que Elevan el Riesgo</h3>
+        <div class="chart-wrap"><canvas id="chart-risk-factors"></canvas></div>
+      </div>
+    </div>
+    <div class="chart-box">
+      <h3>Reportes de Riesgo ALTO / CRÍTICO (muestra)</h3>
+      <div class="table-wrap"><table id="risk-table"><thead><tr><th>#</th><th>Nivel</th><th>Score</th><th>Anomalías</th><th>Factores Humanos</th><th>Extracto Narrativo</th></tr></thead><tbody id="risk-tbody"></tbody></table></div>
+    </div>
+  </div>
+
+  <!-- ── MITIGATION ── -->
+  <div class="tab-panel" id="tab-mitigation">
+    <div class="section-header">
+      <h2>Estrategias de Mitigación</h2>
+      <p>Recomendaciones basadas en los patrones de anomalía detectados</p>
+    </div>
+    <div class="mit-grid" id="mit-grid"></div>
+  </div>
+
+</main>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+//  ASRS HUMAN ERROR ANALYSIS  —  Pure-JS Static Edition
+//  All analytics run in the browser. No backend required.
+// ══════════════════════════════════════════════════════════════
+
+/* ─── PALETTE ─── */
+const CAT_COLORS = ['#3b82f6','#0d9488','#d97706','#dc2626','#7c3aed','#f97316','#0891b2','#65a30d','#db2777','#9ca3af'];
+const CLUSTER_COLORS = ['#3b82f6','#0d9488','#d97706','#7c3aed','#dc2626'];
+const RISK_COLORS = { LOW:'#16a34a', MEDIUM:'#d97706', HIGH:'#dc2626', CRITICAL:'#7f1d1d' };
+
+/* ─── ENGLISH AVIATION STOPWORDS ─── */
+const STOPWORDS = new Set([
+  'a','an','the','and','or','but','in','on','at','to','for','of','with','by','from','as',
+  'is','was','are','were','be','been','being','have','has','had','do','does','did','will',
+  'would','shall','should','may','might','can','could','that','this','these','those',
+  'i','we','you','he','she','it','they','my','our','your','his','her','its','their',
+  'what','which','who','when','where','why','how','all','each','both','few','more','most',
+  'other','some','such','no','not','only','own','so','then','than','too','very','just',
+  'about','after','also','because','before','between','during','into','through','under',
+  'while','if','up','out','over','there','here','first','any','same','even','back','still',
+  'well','like','go','get','us','one','two','three','time','upon','however','within',
+  'near','left','right','front','behind','during','approximately','noted','stated',
+  'reported','indicated','felt','seemed','appeared','around','toward','towards','along',
+  'already','another','since','now','however','therefore','thus','although','despite',
+  'without','against','between','above','below','off','again','further','s','re','ve',
+  'contacted','advised','crew','aircraft','flight','pilot','controller','atc','tower',
+  'radar','traffic','approach','departure','en','route','center','sector','frequency',
+  'clearance','altitude','heading','speed','position','report','reported','reporting',
+  'asked','told','said','heard','thought','knew','aware','observed','noticed','saw',
+  'made','took','began','started','tried','attempted','continued','turned','called'
+]);
+
+/* ─── MITIGATION KNOWLEDGE BASE ─── */
+const MITIGATION_DB = {
+  'Conflict / Airspace Violation': {
+    color:'blue', icon:'✈️',
+    description:'Las violaciones de espacio aéreo y conflictos en ruta son la categoría de mayor riesgo de colisión en vuelo.',
+    recs:['Reforzar procedimientos TCAS RA: seguir resolución advisory sin hesitación','Mejorar coordinación ATC-piloto en traspaso de frecuencias','Implementar alertas tempranas de espacio aéreo restringido en aviónica','Revisar briefings de SID/STAR antes de cada vuelo']
+  },
+  'Ground Incursion / Vehicle': {
+    color:'amber', icon:'🚧',
+    description:'Incursiones en pista representan riesgo crítico durante operaciones de tierra.',
+    recs:['Capacitar en hot-spot de aeropuerto y puntos críticos de pista','Verificar autorización explícita antes de cruzar pista activa','Usar luces estroboscópicas en todo momento en tierra','Mejorar comunicación ground-tower en aeropuertos de alta densidad']
+  },
+  'Deviation / Excursion — Altitude': {
+    color:'red', icon:'⬆️',
+    description:'Desviaciones de altitud asignada son indicador de saturación del cockpit o falla de automatización.',
+    recs:['Revisar política de uso del autopiloto en altitudes de transición','Implementar call-outs cruzados para altitudes restringidas','Mejorar briefings de procedimientos de aterrizaje con alturas de decisión','Aumentar CRM en corrección de errores de altitud asignada']
+  },
+  'Deviation / Excursion — Track': {
+    color:'amber', icon:'📍',
+    description:'Desviaciones de trayectoria asignada, muchas veces relacionadas con distracción o carga de trabajo.',
+    recs:['Reforzar adherencia a SOP para gestión de ruta en FMC','Implementar verificaciones cruzadas del modo de vuelo activo','Mejorar briefings de intercepción de localizer y glide slope','Revisar procedimientos de FMC programming bajo presión']
+  },
+  'Undershoot / Overshoot': {
+    color:'red', icon:'🛬',
+    description:'Aproximaciones inestables son la causa principal de excursiones de pista y aterrizajes duros.',
+    recs:['Aplicar criterios estrictos de aproximación estabilizada (1000 ft IMC / 500 ft VMC)','Política de go-around sin penalidad: fomentar cultura de avortamiento','Revisión de técnica de manejo de energía en fase final','Briefing específico para pistas cortas o con pendiente']
+  },
+  'No Specific Anomaly': {
+    color:'teal', icon:'🔍',
+    description:'Reportes sin anomalía específica identificada, pero con factores humanos o condiciones adversas.',
+    recs:['Fomentar cultura de reporte voluntario sin consecuencias','Revisar condiciones de fatiga en tripulaciones con alto tiempo de vuelo','Mejorar análisis de incidentes sin consecuencias para identificar precursores','Implementar Safety Management System (SMS) robusto']
+  },
+  'Weather / Turbulence': {
+    color:'purple', icon:'⛈️',
+    description:'Condiciones meteorológicas adversas incrementan la carga de trabajo y reducen márgenes de seguridad.',
+    recs:['Mejorar diseminación de PIREPs de turbulencia en tiempo real','Reforzar decisión de desvío: el combustible nunca justifica el riesgo','Entrenamiento en upset prevention and recovery (UPRT)','Revisión de procedimientos de penetración de condiciones de hielo']
+  },
+  'Automation / Technology': {
+    color:'teal', icon:'🤖',
+    description:'Confusión de modos de automatización o fallas de sistemas son factor contribuyente frecuente.',
+    recs:['Entrenamiento continuo en modos de FMA y alertas del FMS','Mantener competencias de pilotaje manual sin automatización','Briefing de modos de autopiloto antes de fases críticas','Revisar interfaz HMI de aviónicos para reducir ambigüedad']
+  }
+};
+
+/* ─── APP STATE ─── */
+const S = {
+  raw: [],
+  cols: { narrative:null, date:null, anomaly:[], hf:[], phase:[], categorical:[] },
+  computed: { overview:null, eda:null, nlp:null, clustering:null, risk:null },
+  charts: {}
+};
+
+// ══════════════════════════════════════════════════════════════
+//  UTILITIES
+// ══════════════════════════════════════════════════════════════
+
+function topN(arr, n=10) {
+  return arr.slice(0, n);
+}
+
+function countValues(data, col) {
+  const freq = {};
+  data.forEach(row => {
+    const v = (row[col] || '').trim();
+    if (v) freq[v] = (freq[v] || 0) + 1;
+  });
+  return Object.entries(freq).sort((a,b) => b[1]-a[1]);
+}
+
+function countFlags(data, cols) {
+  // Each col is a boolean-flag column; count how many rows have a non-empty value
+  const freq = {};
+  cols.forEach(col => {
+    const count = data.filter(r => {
+      const v = (r[col] || '').trim();
+      return v && v !== '' && v.toLowerCase() !== 'none' && v.toLowerCase() !== 'n/a';
+    }).length;
+    if (count > 0) {
+      const label = col.includes('.') ? col.split('.').slice(-1)[0].trim() : col;
+      freq[label] = (freq[label] || 0) + count;
+    }
+  });
+  return Object.entries(freq).sort((a,b) => b[1]-a[1]);
+}
+
+function parseDate(str) {
+  if (!str) return null;
+  str = str.trim();
+  // MM/YYYY
+  let m = str.match(/^(\d{1,2})\/(\d{4})$/);
+  if (m) return new Date(parseInt(m[2]), parseInt(m[1])-1);
+  // YYYY-MM-DD
+  m = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return new Date(parseInt(m[1]), parseInt(m[2])-1, parseInt(m[3]));
+  // MM/DD/YYYY
+  m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) return new Date(parseInt(m[3]), parseInt(m[1])-1, parseInt(m[2]));
+  return null;
+}
+
+function groupByPeriod(data, dateCol) {
+  const freq = {};
+  data.forEach(row => {
+    const d = parseDate(row[dateCol]);
+    if (!d || isNaN(d.getTime())) return;
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    freq[key] = (freq[key]||0) + 1;
+  });
+  return Object.entries(freq).sort((a,b) => a[0].localeCompare(b[0]));
+}
+
+// ══════════════════════════════════════════════════════════════
+//  COLUMN DETECTION
+// ══════════════════════════════════════════════════════════════
+
+function detectColumns(data, headers) {
+  const colsLower = {};
+  headers.forEach(h => colsLower[h.toLowerCase()] = h);
+
+  // Priority narrative cols
+  const NARRATIVE_HINTS = ['narrative','synopsis','description','comment','remark','text','report','callback'];
+  let narrativeCol = null;
+
+  // First: explicit hints
+  for (const hint of NARRATIVE_HINTS) {
+    const match = headers.find(h => h.toLowerCase().includes(hint));
+    if (match) { narrativeCol = match; break; }
+  }
+
+  // Fallback: longest average text
+  if (!narrativeCol) {
+    let maxAvg = 0;
+    headers.forEach(h => {
+      const avg = data.slice(0,100).reduce((s,r) => s + (r[h]||'').length, 0) / 100;
+      if (avg > maxAvg && avg > 30) { maxAvg = avg; narrativeCol = h; }
+    });
+  }
+
+  // Date column
+  const DATE_HINTS = ['date','month','year','time'];
+  let dateCol = null;
+  for (const hint of DATE_HINTS) {
+    const match = headers.find(h => h.toLowerCase().includes(hint));
+    if (match) {
+      // Verify it parses
+      const sample = data.slice(0,20).filter(r => r[match]);
+      const parseable = sample.filter(r => parseDate(r[match]) !== null).length;
+      if (parseable > sample.length * 0.5) { dateCol = match; break; }
+    }
+  }
+
+  // Flag columns by prefix
+  const anomalyCols = headers.filter(h => h.toLowerCase().includes('anomaly'));
+  const hfCols = headers.filter(h => h.toLowerCase().includes('human factor') || h.toLowerCase().includes('human_factor'));
+  const phaseCols = headers.filter(h => h.toLowerCase().includes('phase') || h.toLowerCase().includes('phase of flight'));
+
+  // Categorical: low cardinality string columns
+  const categoricalCols = [];
+  headers.forEach(h => {
+    if (h === narrativeCol || h === dateCol) return;
+    if (anomalyCols.includes(h) || hfCols.includes(h) || phaseCols.includes(h)) return;
+    const vals = data.slice(0,200).map(r => (r[h]||'').trim()).filter(v => v);
+    if (vals.length === 0) return;
+    const uniq = new Set(vals);
+    if (uniq.size <= 30 && uniq.size >= 2 && vals.length > 20) {
+      categoricalCols.push(h);
+    }
+  });
+
+  S.cols = { narrative: narrativeCol, date: dateCol, anomaly: anomalyCols, hf: hfCols, phase: phaseCols, categorical: categoricalCols };
+  console.log('Detected columns:', S.cols);
+}
+
+// ══════════════════════════════════════════════════════════════
+//  ANALYTICS: OVERVIEW
+// ══════════════════════════════════════════════════════════════
+
+function computeOverview() {
+  const data = S.raw;
+  const N = data.length;
+
+  // Date range
+  let dateRange = 'N/D';
+  if (S.cols.date) {
+    const dates = data.map(r => parseDate(r[S.cols.date])).filter(d => d && !isNaN(d.getTime()));
+    if (dates.length) {
+      dates.sort((a,b) => a-b);
+      const fmt = d => d.toLocaleDateString('es-CO', {year:'numeric', month:'short'});
+      dateRange = `${fmt(dates[0])} — ${fmt(dates[dates.length-1])}`;
+    }
+  }
+
+  // Anomaly counts
+  const anomaly = countFlags(data, S.cols.anomaly);
+
+  // Human factors
+  const hf = countFlags(data, S.cols.hf);
+
+  // Phase of flight
+  const phase = countFlags(data, S.cols.phase);
+
+  // Top categorical
+  let topCat = null;
+  if (S.cols.categorical.length) {
+    topCat = { col: S.cols.categorical[0], counts: countValues(data, S.cols.categorical[0]) };
+  }
+
+  S.computed.overview = { N, dateRange, anomaly, hf, phase, topCat };
+}
+
+// ══════════════════════════════════════════════════════════════
+//  ANALYTICS: EDA
+// ══════════════════════════════════════════════════════════════
+
+function computeEDA() {
+  const data = S.raw;
+  const timeline = S.cols.date ? groupByPeriod(data, S.cols.date) : [];
+
+  const distros = [];
+  S.cols.categorical.slice(0,6).forEach(col => {
+    const counts = countValues(data, col).slice(0,12);
+    if (counts.length) distros.push({ col, counts });
+  });
+
+  // Add anomaly as pseudo-categorical if available
+  if (S.cols.anomaly.length && S.computed.overview.anomaly.length) {
+    distros.push({ col:'Anomalías', counts: S.computed.overview.anomaly.slice(0,12) });
+  }
+  if (S.cols.hf.length && S.computed.overview.hf.length) {
+    distros.push({ col:'Factores Humanos', counts: S.computed.overview.hf.slice(0,12) });
+  }
+
+  S.computed.eda = { timeline, distros };
+}
+
+// ══════════════════════════════════════════════════════════════
+//  ANALYTICS: NLP — TF-IDF + BIGRAMS
+// ══════════════════════════════════════════════════════════════
+
+function tokenize(text) {
+  return (text || '').toLowerCase()
+    .replace(/[^a-z\s]/g, ' ')
+    .split(/\s+/)
+    .filter(t => t.length > 2 && !STOPWORDS.has(t) && !/^\d+$/.test(t));
+}
+
+function computeTFIDF(texts, topK=20) {
+  const N = texts.length;
+  if (N === 0) return [];
+
+  // Tokenize all docs
+  const tokenized = texts.map(t => tokenize(t));
+
+  // Document frequency
+  const df = {};
+  tokenized.forEach(toks => {
+    const seen = new Set(toks);
+    seen.forEach(t => df[t] = (df[t]||0) + 1);
+  });
+
+  // TF-IDF scores summed across corpus
+  const scores = {};
+  tokenized.forEach(toks => {
+    if (!toks.length) return;
+    const tf = {};
+    toks.forEach(t => tf[t] = (tf[t]||0) + 1);
+    Object.entries(tf).forEach(([term, cnt]) => {
+      const tfidf = (cnt / toks.length) * Math.log(1 + N / (df[term]||1));
+      scores[term] = (scores[term]||0) + tfidf;
+    });
+  });
+
+  return Object.entries(scores)
+    .map(([term, score]) => ({ term, score: score/N }))
+    .sort((a,b) => b.score - a.score)
+    .slice(0, topK);
+}
+
+function computeBigrams(texts, topK=15) {
+  const freq = {};
+  texts.forEach(text => {
+    const toks = tokenize(text);
+    for (let i = 0; i < toks.length - 1; i++) {
+      const bg = toks[i] + ' ' + toks[i+1];
+      freq[bg] = (freq[bg]||0) + 1;
+    }
+  });
+  return Object.entries(freq)
+    .sort((a,b) => b[1]-a[1])
+    .slice(0, topK)
+    .map(([term, count]) => ({ term, count }));
+}
+
+function computeNLP() {
+  if (!S.cols.narrative) { S.computed.nlp = { keywords:[], bigrams:[] }; return; }
+  const texts = S.raw.map(r => r[S.cols.narrative]||'').filter(t => t.length > 10);
+  // Sample for performance
+  const sample = texts.length > 2000 ? texts.slice(0,2000) : texts;
+  const keywords = computeTFIDF(sample, 20);
+  const bigrams = computeBigrams(sample, 15);
+  S.computed.nlp = { keywords, bigrams };
+}
+
+// ══════════════════════════════════════════════════════════════
+//  ANALYTICS: K-MEANS + PCA 2D
+// ══════════════════════════════════════════════════════════════
+
+function dot(a, b) { return a.reduce((s, v, i) => s + v * b[i], 0); }
+
+function euclidean(a, b) {
+  let s = 0;
+  for (let i = 0; i < a.length; i++) s += (a[i]-b[i])**2;
+  return Math.sqrt(s);
+}
+
+function vecNorm(v) { return Math.sqrt(v.reduce((s,x) => s + x*x, 0)); }
+
+function buildTFIDFMatrix(texts, vocab) {
+  const N = texts.length;
+  const df = {};
+  const tokenized = texts.map(t => tokenize(t));
+
+  // DF for vocab
+  tokenized.forEach(toks => {
+    const seen = new Set(toks);
+    seen.forEach(t => { if (vocab.has(t)) df[t] = (df[t]||0) + 1; });
+  });
+
+  return tokenized.map(toks => {
+    if (!toks.length) return vocab.size ? new Array(vocab.size).fill(0) : [0];
+    const tf = {};
+    toks.forEach(t => { if (vocab.has(t)) tf[t] = (tf[t]||0) + 1; });
+    return [...vocab].map(term => {
+      const cnt = tf[term]||0;
+      if (!cnt) return 0;
+      return (cnt / toks.length) * Math.log(1 + N / (df[term]||1));
+    });
+  });
+}
+
+function kmeans(vectors, k, maxIter=30) {
+  const n = vectors.length;
+  if (n < k) k = n;
+  const d = vectors[0].length;
+
+  // k-means++ init
+  const idxs = [];
+  idxs.push(Math.floor(Math.random() * n));
+  while (idxs.length < k) {
+    const dists = vectors.map((v, i) => {
+      if (idxs.includes(i)) return 0;
+      return Math.min(...idxs.map(ci => euclidean(v, vectors[ci])**2));
+    });
+    const total = dists.reduce((s,v) => s+v, 0);
+    let r = Math.random() * total, cumul = 0;
+    for (let i = 0; i < n; i++) {
+      cumul += dists[i];
+      if (cumul >= r) { idxs.push(i); break; }
+    }
+    if (idxs.length < k) idxs.push(Math.floor(Math.random() * n));
+  }
+  let centroids = idxs.map(i => [...vectors[i]]);
+  let assignments = new Array(n).fill(0);
+
+  for (let iter = 0; iter < maxIter; iter++) {
+    let changed = false;
+    for (let i = 0; i < n; i++) {
+      let best = 0, minD = Infinity;
+      for (let c = 0; c < k; c++) {
+        const d2 = euclidean(vectors[i], centroids[c]);
+        if (d2 < minD) { minD = d2; best = c; }
+      }
+      if (assignments[i] !== best) { assignments[i] = best; changed = true; }
+    }
+    if (!changed) break;
+
+    // Update centroids
+    const sums = Array.from({length:k}, () => new Array(d).fill(0));
+    const cnts = new Array(k).fill(0);
+    for (let i = 0; i < n; i++) {
+      const c = assignments[i];
+      for (let j = 0; j < d; j++) sums[c][j] += vectors[i][j];
+      cnts[c]++;
+    }
+    centroids = sums.map((s, c) => cnts[c] > 0 ? s.map(v => v/cnts[c]) : centroids[c]);
+  }
+  return { assignments, centroids };
+}
+
+function powerIteration(matrix, maxIter=80) {
+  const d = matrix[0].length;
+  // Compute M^T M * v iteratively
+  let v = Array.from({length:d}, () => Math.random()-0.5);
+  let nv = vecNorm(v); v = v.map(x => x/nv);
+
+  for (let iter = 0; iter < maxIter; iter++) {
+    // Mv = matrix * v (n × 1)
+    const mv = matrix.map(row => dot(row, v));
+    // A^T Mv (d × 1)
+    const atMv = new Array(d).fill(0);
+    matrix.forEach((row, i) => row.forEach((x, j) => atMv[j] += x * mv[i]));
+    const n2 = vecNorm(atMv);
+    if (n2 < 1e-10) break;
+    const vNew = atMv.map(x => x/n2);
+    const diff = vecNorm(v.map((x,i) => x - vNew[i]));
+    v = vNew;
+    if (diff < 1e-6) break;
+  }
+  return v;
+}
+
+function deflateMatrix(matrix, v) {
+  // Remove component along v: A = A - (A * v) * v^T
+  return matrix.map(row => {
+    const proj = dot(row, v);
+    return row.map((x, j) => x - proj * v[j]);
+  });
+}
+
+function pca2D(matrix) {
+  if (!matrix.length || !matrix[0].length) return [];
+  const n = matrix.length;
+  const d = matrix[0].length;
+
+  // Center
+  const mean = new Array(d).fill(0);
+  matrix.forEach(row => row.forEach((v,j) => mean[j] += v/n));
+  const centered = matrix.map(row => row.map((v,j) => v - mean[j]));
+
+  // PC1
+  const pc1 = powerIteration(centered);
+  // PC2 (deflate)
+  const deflated = deflateMatrix(centered, pc1);
+  const pc2 = powerIteration(deflated);
+
+  return centered.map(row => ({ x: dot(row, pc1), y: dot(row, pc2) }));
+}
+
+function computeClustering() {
+  if (!S.cols.narrative || !S.computed.nlp || !S.computed.nlp.keywords.length) {
+    S.computed.clustering = null; return;
+  }
+
+  const texts = S.raw.map(r => r[S.cols.narrative]||'');
+  // Sample max 600 for performance
+  const SAMPLE = 600;
+  const sampled = texts.length > SAMPLE ? texts.slice(0, SAMPLE) : texts;
+  const sampledIdx = texts.length > SAMPLE ? Array.from({length:SAMPLE}, (_,i) => i) : Array.from({length:texts.length}, (_,i) => i);
+
+  // Use top 30 TF-IDF terms as vocabulary
+  const vocab = new Set(S.computed.nlp.keywords.map(k => k.term));
+
+  const matrix = buildTFIDFMatrix(sampled, vocab);
+
+  // K-Means
+  const K = 5;
+  const { assignments, centroids } = kmeans(matrix, K);
+
+  // PCA 2D
+  const points2D = pca2D(matrix);
+
+  // Cluster labels (top terms per centroid)
+  const vocabArr = [...vocab];
+  const clusterLabels = centroids.map((centroid, ci) => {
+    const scored = vocabArr.map((term, j) => ({ term, score: centroid[j] }));
+    scored.sort((a,b) => b.score - a.score);
+    return scored.slice(0,5).map(s => s.term).join(', ');
+  });
+
+  // Cluster sizes
+  const sizes = new Array(K).fill(0);
+  assignments.forEach(c => sizes[c]++);
+
+  S.computed.clustering = { points2D, assignments, clusterLabels, sizes, K, sampledIdx };
+}
+
+// ══════════════════════════════════════════════════════════════
+//  ANALYTICS: RISK SCORING
+// ══════════════════════════════════════════════════════════════
+
+const HIGH_RISK_PHASES = ['takeoff','landing','approach','final','descent','initial climb','go-around'];
+
+function scoreRow(row) {
+  let score = 0;
+
+  // Anomaly count
+  const anomalyCount = S.cols.anomaly.filter(c => {
+    const v = (row[c]||'').trim();
+    return v && v.toLowerCase() !== 'none';
+  }).length;
+  score += anomalyCount * 1.5;
+
+  // Human factor count
+  const hfCount = S.cols.hf.filter(c => {
+    const v = (row[c]||'').trim();
+    return v && v.toLowerCase() !== 'none';
+  }).length;
+  score += hfCount * 1.2;
+
+  // Phase of flight risk
+  const phaseActive = S.cols.phase.filter(c => {
+    const v = (row[c]||'').trim().toLowerCase();
+    return v && HIGH_RISK_PHASES.some(p => v.includes(p));
+  }).length;
+  score += phaseActive * 1.0;
+
+  // Narrative keyword risk boost
+  if (S.cols.narrative) {
+    const narr = (row[S.cols.narrative]||'').toLowerCase();
+    const riskWords = ['collision','impact','emergency','mayday','near miss','incursion','loss of control','fire','smoke','stall','TCAS RA'];
+    riskWords.forEach(w => { if (narr.includes(w.toLowerCase())) score += 2; });
+  }
+
+  let level = 'LOW';
+  if (score >= 8) level = 'CRITICAL';
+  else if (score >= 5) level = 'HIGH';
+  else if (score >= 2) level = 'MEDIUM';
+
+  return { score: Math.round(score*10)/10, level, anomalyCount, hfCount };
+}
+
+function computeRisk() {
+  const scored = S.raw.map((row, i) => ({ i, row, ...scoreRow(row) }));
+
+  const dist = { LOW:0, MEDIUM:0, HIGH:0, CRITICAL:0 };
+  scored.forEach(s => dist[s.level]++);
+
+  // Risk factors from overview
+  const riskFactors = [];
+  if (S.computed.overview.anomaly.length) {
+    S.computed.overview.anomaly.slice(0,8).forEach(([k,v]) => riskFactors.push({ label: k, value: v }));
+  }
+  if (S.computed.overview.hf.length) {
+    S.computed.overview.hf.slice(0,5).forEach(([k,v]) => riskFactors.push({ label: k, value: v }));
+  }
+  riskFactors.sort((a,b) => b.value - a.value);
+
+  // High/critical records for table
+  const highRisk = scored.filter(s => s.level === 'HIGH' || s.level === 'CRITICAL')
+    .sort((a,b) => b.score - a.score)
+    .slice(0, 20);
+
+  S.computed.risk = { dist, riskFactors, highRisk, scored };
+}
+
+// ══════════════════════════════════════════════════════════════
+//  ANALYTICS: MITIGATION
+// ══════════════════════════════════════════════════════════════
+
+function computeMitigation() {
+  // Match top anomaly labels to mitigation DB
+  const topAnomalies = S.computed.overview.anomaly.slice(0,6).map(([k]) => k);
+  const cards = [];
+
+  // Try exact and partial match
+  topAnomalies.forEach(label => {
+    let key = Object.keys(MITIGATION_DB).find(k => label.toLowerCase().includes(k.split('/')[0].trim().toLowerCase()));
+    if (!key) key = Object.keys(MITIGATION_DB).find(k => k.toLowerCase().includes(label.split('/')[0].trim().toLowerCase().slice(0,8)));
+    if (key) cards.push({ key, ...MITIGATION_DB[key] });
+  });
+
+  // Fill remaining slots from DB if < 4
+  if (cards.length < 4) {
+    Object.entries(MITIGATION_DB).forEach(([key, val]) => {
+      if (!cards.find(c => c.key === key)) cards.push({ key, ...val });
+    });
+  }
+
+  S.computed.mitigation = cards.slice(0, 8);
+}
+
+// ══════════════════════════════════════════════════════════════
+//  CHART HELPERS
+// ══════════════════════════════════════════════════════════════
+
+function destroyChart(id) {
+  if (S.charts[id]) { S.charts[id].destroy(); delete S.charts[id]; }
+}
+
+function baseFont() { return { family: 'Inter', size: 11 }; }
+
+function baseTooltip() {
+  return {
+    backgroundColor: '#1f2937',
+    titleColor: '#f9fafb',
+    bodyColor: '#d1d5db',
+    padding: 10,
+    cornerRadius: 6,
+    titleFont: { ...baseFont(), weight: 'bold' },
+    bodyFont: baseFont()
+  };
+}
+
+function baseLegend() {
+  return { position:'top', labels: { font: baseFont(), color:'#4b5563', boxWidth:12, padding:16 } };
+}
+
+function makeHBar(id, labels, values, color='#3b82f6', title='') {
+  destroyChart(id);
+  const ctx = document.getElementById(id).getContext('2d');
+  S.charts[id] = new Chart(ctx, {
+    type:'bar',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: color,
+        borderRadius: 4,
+        barPercentage: 0.7
+      }]
+    },
+    options: {
+      indexAxis:'y',
+      responsive:true, maintainAspectRatio:false,
+      plugins: {
+        legend:{ display:false },
+        tooltip:{ ...baseTooltip(), callbacks:{ label: ctx => ` ${ctx.raw.toLocaleString('es-CO')}` } }
+      },
+      scales:{
+        x:{ grid:{color:'#f3f4f6'}, ticks:{font:baseFont(), color:'#6b7280'}, border:{display:false} },
+        y:{ grid:{display:false}, ticks:{font:{...baseFont(),size:10}, color:'#374151'}, border:{display:false} }
+      }
+    }
+  });
+}
+
+function makePie(id, labels, values, colors) {
+  destroyChart(id);
+  const ctx = document.getElementById(id).getContext('2d');
+  S.charts[id] = new Chart(ctx, {
+    type:'doughnut',
+    data: { labels, datasets:[{ data:values, backgroundColor:colors, borderWidth:2, borderColor:'#fff' }] },
+    options: {
+      responsive:true, maintainAspectRatio:false, cutout:'55%',
+      plugins: { legend:baseLegend(), tooltip:{ ...baseTooltip(), callbacks:{ label: ctx => ` ${ctx.label}: ${ctx.raw.toLocaleString('es-CO')} (${Math.round(ctx.raw/values.reduce((a,b)=>a+b,0)*100)}%)` } } }
+    }
+  });
+}
+
+function makeLine(id, labels, values, color='#3b82f6') {
+  destroyChart(id);
+  const ctx = document.getElementById(id).getContext('2d');
+  S.charts[id] = new Chart(ctx, {
+    type:'line',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        borderColor: color,
+        backgroundColor: color.replace(')',',0.1)').replace('rgb','rgba'),
+        borderWidth: 2,
+        pointRadius: values.length > 60 ? 0 : 3,
+        pointHoverRadius: 5,
+        fill:true,
+        tension: 0.3
+      }]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      interaction:{ mode:'index', intersect:false },
+      plugins:{
+        legend:{display:false},
+        tooltip:{ ...baseTooltip(), callbacks:{ label: ctx => ` Reportes: ${ctx.raw}` } }
+      },
+      scales:{
+        x:{ grid:{display:false}, ticks:{font:{...baseFont(),size:10}, color:'#6b7280', maxRotation:45}, border:{display:false} },
+        y:{ grid:{color:'#f3f4f6'}, ticks:{font:baseFont(), color:'#6b7280'}, border:{display:false} }
+      }
+    }
+  });
+}
+
+function makeScatter(id, datasets) {
+  destroyChart(id);
+  const ctx = document.getElementById(id).getContext('2d');
+  S.charts[id] = new Chart(ctx, {
+    type:'scatter',
+    data: { datasets },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins: {
+        legend:baseLegend(),
+        tooltip:{ ...baseTooltip(), callbacks:{ label: ctx => `Cluster ${ctx.datasetIndex+1}` } }
+      },
+      scales:{
+        x:{ grid:{color:'#f3f4f6'}, ticks:{font:baseFont(),color:'#6b7280'}, title:{display:true,text:'PC1',font:baseFont(),color:'#9ca3af'}, border:{display:false} },
+        y:{ grid:{color:'#f3f4f6'}, ticks:{font:baseFont(),color:'#6b7280'}, title:{display:true,text:'PC2',font:baseFont(),color:'#9ca3af'}, border:{display:false} }
+      }
+    }
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+//  RENDER FUNCTIONS
+// ══════════════════════════════════════════════════════════════
+
+function renderOverview() {
+  const { N, dateRange, anomaly, hf, phase, topCat } = S.computed.overview;
+
+  // KPI
+  document.getElementById('kpi-grid').innerHTML = `
+    <div class="card"><div class="card-title">Total Reportes</div><div class="card-value">${N.toLocaleString('es-CO')}</div><div class="card-sub">registros en el dataset</div></div>
+    <div class="card"><div class="card-title">Rango Temporal</div><div class="card-value" style="font-size:1.1rem;padding-top:.4rem">${dateRange}</div></div>
+    <div class="card"><div class="card-title">Tipos de Anomalía</div><div class="card-value">${anomaly.length}</div><div class="card-sub">categorías detectadas</div></div>
+    <div class="card"><div class="card-title">Factores Humanos</div><div class="card-value">${hf.length}</div><div class="card-sub">tipos identificados</div></div>
+    <div class="card"><div class="card-title">Columnas Analizadas</div><div class="card-value">${S.cols.anomaly.length + S.cols.hf.length + S.cols.phase.length + S.cols.categorical.length}</div><div class="card-sub">dimensiones exploradas</div></div>
+  `;
+  document.getElementById('overview-sub').textContent = `${N.toLocaleString('es-CO')} registros · ${dateRange}`;
+
+  // Anomaly chart
+  if (anomaly.length) {
+    const top = topN(anomaly, 10);
+    makeHBar('chart-anomaly', top.map(([k])=>k), top.map(([,v])=>v), '#3b82f6');
+  }
+
+  // HF chart
+  if (hf.length) {
+    const top = topN(hf, 10);
+    makeHBar('chart-hf', top.map(([k])=>k), top.map(([,v])=>v), '#0d9488');
+  }
+
+  // Phase chart
+  if (phase.length) {
+    const top = topN(phase, 10);
+    makeHBar('chart-phase', top.map(([k])=>k), top.map(([,v])=>v), '#d97706');
+  }
+
+  // Categorical
+  if (topCat) {
+    const top = topN(topCat.counts, 8);
+    makePie('chart-cat', top.map(([k])=>k), top.map(([,v])=>v), CAT_COLORS);
+  } else if (anomaly.length) {
+    const top = topN(anomaly, 6);
+    makePie('chart-cat', top.map(([k])=>k), top.map(([,v])=>v), CAT_COLORS);
+  }
+}
+
+function renderEDA() {
+  const { timeline, distros } = S.computed.eda;
+
+  if (timeline.length) {
+    makeLine('chart-timeline', timeline.map(([k])=>k), timeline.map(([,v])=>v), '#3b82f6');
+  }
+
+  const container = document.getElementById('eda-charts');
+  container.innerHTML = '';
+  distros.forEach((d, i) => {
+    const id = `eda-chart-${i}`;
+    container.innerHTML += `<div class="chart-box"><h3>${d.col}</h3><div class="chart-wrap"><canvas id="${id}"></canvas></div></div>`;
+  });
+  // Render after DOM update
+  requestAnimationFrame(() => {
+    distros.forEach((d, i) => {
+      const id = `eda-chart-${i}`;
+      const top = topN(d.counts, 10);
+      makeHBar(id, top.map(([k])=>k), top.map(([,v])=>v), CAT_COLORS[i % CAT_COLORS.length]);
+    });
+  });
+}
+
+function renderNLP() {
+  const { keywords, bigrams } = S.computed.nlp;
+
+  if (keywords.length) {
+    destroyChart('chart-tfidf');
+    const ctx = document.getElementById('chart-tfidf').getContext('2d');
+    S.charts['chart-tfidf'] = new Chart(ctx, {
+      type:'bar',
+      data:{
+        labels: keywords.map(k=>k.term),
+        datasets:[{
+          data: keywords.map(k=>parseFloat(k.score.toFixed(4))),
+          backgroundColor: keywords.map((_,i) => `hsl(${210 + i*8},70%,${50+i*1.5}%)`),
+          borderRadius:4, barPercentage:0.75
+        }]
+      },
+      options:{
+        indexAxis:'y', responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{display:false}, tooltip:{...baseTooltip(), callbacks:{label:ctx=>` TF-IDF: ${ctx.raw.toFixed(4)}`}}},
+        scales:{
+          x:{grid:{color:'#f3f4f6'},ticks:{font:baseFont(),color:'#6b7280'},border:{display:false}},
+          y:{grid:{display:false},ticks:{font:{...baseFont(),size:10},color:'#374151'},border:{display:false}}
+        }
+      }
+    });
+  }
+
+  if (bigrams.length) {
+    makeHBar('chart-bigrams', bigrams.map(b=>b.term), bigrams.map(b=>b.count), '#7c3aed');
+  }
+}
+
+function renderClustering() {
+  const c = S.computed.clustering;
+  if (!c) { return; }
+
+  const { points2D, assignments, clusterLabels, sizes, K } = c;
+
+  // Build dataset per cluster
+  const datasets = Array.from({length:K}, (_, ci) => ({
+    label: `Cluster ${ci+1}`,
+    data: points2D
+      .filter((_,i) => assignments[i] === ci)
+      .map(p => ({ x: p.x, y: p.y })),
+    backgroundColor: CLUSTER_COLORS[ci] + 'aa',
+    pointRadius: 4,
+    pointHoverRadius: 6
+  }));
+
+  makeScatter('chart-cluster-scatter', datasets);
+
+  // Cluster info cards
+  const container = document.getElementById('cluster-info');
+  container.innerHTML = clusterLabels.map((terms, ci) => `
+    <div class="cluster-card" style="border-left:3px solid ${CLUSTER_COLORS[ci]}">
+      <h4 style="color:${CLUSTER_COLORS[ci]}">Cluster ${ci+1} <span style="color:#9ca3af;font-weight:400">(${sizes[ci]} reportes)</span></h4>
+      <div class="terms">${terms}</div>
+    </div>
+  `).join('');
+}
+
+function renderRisk() {
+  const { dist, riskFactors, highRisk } = S.computed.risk;
+
+  // Distribution donut
+  const levels = ['LOW','MEDIUM','HIGH','CRITICAL'];
+  const lvlLabels = ['Bajo','Medio','Alto','Crítico'];
+  makePie('chart-risk-dist',
+    lvlLabels.map((l,i) => `${l} (${dist[levels[i]]})`),
+    levels.map(l => dist[l]),
+    ['#16a34a','#d97706','#dc2626','#7f1d1d']
+  );
+
+  // Risk factors bar
+  if (riskFactors.length) {
+    const top = riskFactors.slice(0,12);
+    makeHBar('chart-risk-factors', top.map(r=>r.label), top.map(r=>r.value), '#dc2626');
+  }
+
+  // Table
+  const levelBadge = { LOW:'<span class="badge badge-green">Bajo</span>', MEDIUM:'<span class="badge badge-amber">Medio</span>', HIGH:'<span class="badge badge-red">Alto</span>', CRITICAL:'<span class="badge badge-red" style="background:#7f1d1d;color:#fff">Crítico</span>' };
+  const tbody = document.getElementById('risk-tbody');
+  tbody.innerHTML = highRisk.map((s, i) => {
+    const narr = S.cols.narrative ? (s.row[S.cols.narrative]||'').slice(0,120)+'...' : 'N/D';
+    const anomalies = S.cols.anomaly.filter(c => (s.row[c]||'').trim()).map(c => c.split('.').slice(-1)[0]).slice(0,3).join(', ') || '—';
+    const hfs = S.cols.hf.filter(c => (s.row[c]||'').trim()).map(c => c.split('.').slice(-1)[0]).slice(0,3).join(', ') || '—';
+    return `<tr><td>${i+1}</td><td>${levelBadge[s.level]||s.level}</td><td style="font-family:var(--mono);font-size:.8rem">${s.score}</td><td style="font-size:.78rem">${anomalies}</td><td style="font-size:.78rem">${hfs}</td><td style="font-size:.78rem;color:#6b7280">${narr}</td></tr>`;
+  }).join('');
+}
+
+function renderMitigation() {
+  const cards = S.computed.mitigation;
+  const colorClass = { blue:'', amber:'amber', teal:'teal', red:'red', purple:'purple' };
+  document.getElementById('mit-grid').innerHTML = cards.map(c => `
+    <div class="mit-card ${colorClass[c.color]||''}">
+      <h3>${c.icon} ${c.key}</h3>
+      <p>${c.description}</p>
+      <ul>${c.recs.map(r => `<li>${r}</li>`).join('')}</ul>
+    </div>
+  `).join('');
+}
+
+// ══════════════════════════════════════════════════════════════
+//  TAB NAVIGATION
+// ══════════════════════════════════════════════════════════════
+
+const TABS = ['upload','overview','eda','nlp','clustering','risk','mitigation'];
+
+function switchTab(tab) {
+  TABS.forEach(t => {
+    document.getElementById(`tab-${t}`).classList.remove('active');
+    const btn = document.getElementById(`btn-${t}`);
+    if (btn) btn.classList.remove('active');
+  });
+  document.getElementById(`tab-${tab}`).classList.add('active');
+  const btn = document.getElementById(`btn-${tab}`);
+  if (btn) btn.classList.add('active');
+
+  // Lazy render
+  if (tab === 'overview' && S.computed.overview) renderOverview();
+  if (tab === 'eda' && S.computed.eda) renderEDA();
+  if (tab === 'nlp' && S.computed.nlp) renderNLP();
+  if (tab === 'clustering' && S.computed.clustering) renderClustering();
+  if (tab === 'risk' && S.computed.risk) renderRisk();
+  if (tab === 'mitigation' && S.computed.mitigation) renderMitigation();
+}
+
+function unlockTabs() {
+  TABS.slice(1).forEach(t => {
+    const btn = document.getElementById(`btn-${t}`);
+    if (btn) btn.disabled = false;
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+//  STATUS / PROGRESS
+// ══════════════════════════════════════════════════════════════
+
+function setStatus(text, state='loading') {
+  document.getElementById('status-text').textContent = text;
+  const dot = document.getElementById('status-dot');
+  dot.className = 'status-dot';
+  if (state !== 'none') dot.classList.add(state);
+}
+
+function setProgress(pct, msg) {
+  document.getElementById('progress-area').style.display = 'block';
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('progress-msg').textContent = msg;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  CSV PROCESSING PIPELINE
+// ══════════════════════════════════════════════════════════════
+
+async function processCSV(data, headers) {
+  S.raw = data;
+  setProgress(10, 'Detectando columnas...');
+  await tick();
+
+  detectColumns(data, headers);
+
+  setProgress(20, `${data.length.toLocaleString('es-CO')} registros · calculando visión general...`);
+  await tick();
+  computeOverview();
+
+  setProgress(35, 'Calculando EDA...');
+  await tick();
+  computeEDA();
+
+  setProgress(50, 'Procesando NLP (TF-IDF + bigramas)...');
+  await tick();
+  computeNLP();
+
+  setProgress(65, 'Ejecutando K-Means...');
+  await tick();
+  computeClustering();
+
+  setProgress(80, 'Calculando perfiles de riesgo...');
+  await tick();
+  computeRisk();
+
+  setProgress(90, 'Generando recomendaciones...');
+  await tick();
+  computeMitigation();
+
+  setProgress(100, '¡Listo!');
+  unlockTabs();
+  setStatus(`${data.length.toLocaleString('es-CO')} registros cargados`, 'ready');
+
+  // Navigate to overview
+  setTimeout(() => switchTab('overview'), 400);
+}
+
+function tick() {
+  return new Promise(r => setTimeout(r, 0));
+}
+
+// ══════════════════════════════════════════════════════════════
+//  FILE UPLOAD / DRAG & DROP
+// ══════════════════════════════════════════════════════════════
+
+function handleFile(file) {
+  if (!file) return;
+  setStatus('Leyendo CSV...', 'loading');
+  document.getElementById('progress-area').style.display = 'block';
+  setProgress(5, `Leyendo ${file.name}...`);
+
+  Papa.parse(file, {
+    header: true,
+    skipEmptyLines: true,
+    complete: function(results) {
+      if (!results.data || results.data.length === 0) {
+        setStatus('CSV vacío o inválido', 'none');
+        return;
+      }
+      const headers = results.meta.fields || Object.keys(results.data[0]);
+      processCSV(results.data, headers);
+    },
+    error: function(err) {
+      setStatus('Error al leer CSV', 'none');
+      alert('Error: ' + err.message);
+    }
+  });
+}
+
+// Drop zone
+const dropZone = document.getElementById('drop-zone');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file && file.name.endsWith('.csv')) handleFile(file);
+});
+
+document.getElementById('file-input').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (file) handleFile(file);
+});
+
+// ══════════════════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════════════════
+Chart.defaults.font.family = 'Inter';
+Chart.defaults.color = '#6b7280';
+setStatus('Sin datos', 'none');
+console.log('ASRS Static Analysis ready. Drop a CSV file to begin.');
+</script>
+</body>
+</html>

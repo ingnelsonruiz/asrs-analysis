@@ -167,14 +167,6 @@
     .section-header h2 { font-size: 1.35rem; font-weight: 700; color: var(--gray-800); }
     .section-header p { font-size: .875rem; color: var(--gray-500); margin-top: .25rem; }
 
-    /* ── EMPTY STATE ── */
-    .empty-state { text-align: center; padding: 4rem 2rem; color: var(--gray-400); }
-    .empty-state svg { margin-bottom: 1rem; opacity: .4; }
-    .empty-state p { font-size: .95rem; }
-
-    /* ── TOOLTIP ── */
-    .custom-tooltip { background: var(--gray-800); color: #fff; padding: .5rem .8rem; border-radius: 6px; font: 500 .78rem var(--font); pointer-events: none; }
-
     @media (max-width: 640px) {
       main { padding: 1rem .75rem 3rem; }
       .header-inner { padding: 0 1rem; }
@@ -183,7 +175,6 @@
   </style>
 </head>
 <body>
-<!-- ══════════════ HEADER ══════════════ -->
 <header>
   <div class="header-inner">
     <div class="logo">ASRS <span>Error Analysis</span></div>
@@ -203,18 +194,16 @@
   </div>
 </header>
 
-<!-- ══════════════ MAIN ══════════════ -->
 <main>
-
-  <!-- ── UPLOAD ── -->
+  <!-- ── UPLOAD TAB ── -->
   <div class="tab-panel active" id="tab-upload">
     <div>
       <div class="upload-title">ASRS Human Error Analysis</div>
-      <div class="upload-sub">Análisis estático · 100% en el navegador · sin servidor</div>
+      <div class="upload-sub">Análisis estático · 100% en el navegador · Soporte nativo para ASRS NASA</div>
       <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
         <div class="drop-icon">📋</div>
         <div class="drop-label"><strong>Arrastra tu CSV aquí</strong> o haz clic para seleccionar</div>
-        <div class="drop-hint">Formato: ASRS export (NASA) · .csv · cualquier tamaño</div>
+        <div class="drop-hint">Soporta exportaciones directas de NASA ASRS DBOnline (.csv)</div>
         <button class="btn-upload" onclick="event.stopPropagation(); document.getElementById('file-input').click()">Seleccionar archivo</button>
       </div>
       <input type="file" id="file-input" accept=".csv" />
@@ -223,20 +212,18 @@
         <div class="processing-msg" id="progress-msg">Cargando...</div>
       </div>
       <div class="format-guide">
-        <h4>📌 Columnas reconocidas automáticamente</h4>
+        <h4>📌 Detección Inteligente Activada</h4>
         <ul>
-          <li>Texto narrativo largo → NLP (TF-IDF, bigramas)</li>
-          <li>Columnas <code>Anomaly.*</code> → categorías de anomalía</li>
-          <li>Columnas <code>Human Factors.*</code> → factores humanos</li>
-          <li>Columnas <code>Phase of Flight.*</code> → fase del vuelo</li>
-          <li>Columna de fecha (Date / Month) → línea de tiempo</li>
-          <li>Cualquier CSV tabulado funciona · columnas extra se detectan</li>
+          <li>Soporte automático para CSV con <strong>encabezados dobles de ASRS</strong> (Fila 1 categorías, Fila 2 columnas).</li>
+          <li>Reconocimiento de fechas en formato compacto <code>YYYYMM</code> (ej. 201601) y estándar.</li>
+          <li>Detección de <code>Anomaly</code>, <code>Human Factors</code>, <code>Flight Phase</code> y <code>Narrative</code>.</li>
+          <li>Exclusión automática de códigos temporales de los gráficos categóricos.</li>
         </ul>
       </div>
     </div>
   </div>
 
-  <!-- ── OVERVIEW ── -->
+  <!-- ── OVERVIEW TAB ── -->
   <div class="tab-panel" id="tab-overview">
     <div class="section-header">
       <h2>Visión General</h2>
@@ -257,17 +244,17 @@
         <div class="chart-wrap"><canvas id="chart-phase"></canvas></div>
       </div>
       <div class="chart-box">
-        <h3>Distribución de Columna Categórica</h3>
+        <h3>Distribución Categórica Relevante</h3>
         <div class="chart-wrap"><canvas id="chart-cat"></canvas></div>
       </div>
     </div>
   </div>
 
-  <!-- ── EDA ── -->
+  <!-- ── EDA TAB ── -->
   <div class="tab-panel" id="tab-eda">
     <div class="section-header">
-      <h2>Análisis Exploratorio</h2>
-      <p>Distribuciones y evolución temporal</p>
+      <h2>Análisis Exploratorio (EDA)</h2>
+      <p>Distribuciones de variables y evolución en el tiempo</p>
     </div>
     <div class="chart-box" style="margin-bottom:1.25rem">
       <h3>Reportes por Período</h3>
@@ -276,11 +263,11 @@
     <div class="charts-grid" id="eda-charts"></div>
   </div>
 
-  <!-- ── NLP ── -->
+  <!-- ── NLP TAB ── -->
   <div class="tab-panel" id="tab-nlp">
     <div class="section-header">
       <h2>Análisis de Lenguaje Natural</h2>
-      <p>Extracción de términos clave y co-ocurrencias de los reportes narrativos</p>
+      <p>Extracción de términos clave y co-ocurrencias en narrativas ASRS</p>
     </div>
     <div class="charts-grid">
       <div class="chart-box">
@@ -294,11 +281,11 @@
     </div>
   </div>
 
-  <!-- ── CLUSTERING ── -->
+  <!-- ── CLUSTERING TAB ── -->
   <div class="tab-panel" id="tab-clustering">
     <div class="section-header">
       <h2>Clustering de Reportes</h2>
-      <p>K-Means (k=5) sobre vectores TF-IDF · PCA 2D para visualización</p>
+      <p>K-Means (k=5) sobre vectores TF-IDF con reducción PCA 2D</p>
     </div>
     <div class="chart-box" style="margin-bottom:1.25rem">
       <h3>Mapa de Clusters (PCA 2D)</h3>
@@ -307,11 +294,11 @@
     <div class="cluster-grid" id="cluster-info"></div>
   </div>
 
-  <!-- ── RISK ── -->
+  <!-- ── RISK TAB ── -->
   <div class="tab-panel" id="tab-risk">
     <div class="section-header">
       <h2>Perfil de Riesgo</h2>
-      <p>Clasificación de reportes por nivel de riesgo basada en combinación de factores</p>
+      <p>Matriz de clasificación de riesgo por severidad y multiplicadores de impacto</p>
     </div>
     <div class="charts-grid" style="margin-bottom:1.25rem">
       <div class="chart-box">
@@ -324,34 +311,26 @@
       </div>
     </div>
     <div class="chart-box">
-      <h3>Reportes de Riesgo ALTO / CRÍTICO (muestra)</h3>
+      <h3>Reportes de Riesgo ALTO / CRÍTICO</h3>
       <div class="table-wrap"><table id="risk-table"><thead><tr><th>#</th><th>Nivel</th><th>Score</th><th>Anomalías</th><th>Factores Humanos</th><th>Extracto Narrativo</th></tr></thead><tbody id="risk-tbody"></tbody></table></div>
     </div>
   </div>
 
-  <!-- ── MITIGATION ── -->
+  <!-- ── MITIGATION TAB ── -->
   <div class="tab-panel" id="tab-mitigation">
     <div class="section-header">
       <h2>Estrategias de Mitigación</h2>
-      <p>Recomendaciones basadas en los patrones de anomalía detectados</p>
+      <p>Recomendaciones SMS operacionales basadas en los hallazgos del dataset</p>
     </div>
     <div class="mit-grid" id="mit-grid"></div>
   </div>
-
 </main>
 
 <script>
-// ══════════════════════════════════════════════════════════════
-//  ASRS HUMAN ERROR ANALYSIS  —  Pure-JS Static Edition
-//  All analytics run in the browser. No backend required.
-// ══════════════════════════════════════════════════════════════
 
-/* ─── PALETTE ─── */
 const CAT_COLORS = ['#3b82f6','#0d9488','#d97706','#dc2626','#7c3aed','#f97316','#0891b2','#65a30d','#db2777','#9ca3af'];
 const CLUSTER_COLORS = ['#3b82f6','#0d9488','#d97706','#7c3aed','#dc2626'];
-const RISK_COLORS = { LOW:'#16a34a', MEDIUM:'#d97706', HIGH:'#dc2626', CRITICAL:'#7f1d1d' };
 
-/* ─── ENGLISH AVIATION STOPWORDS ─── */
 const STOPWORDS = new Set([
   'a','an','the','and','or','but','in','on','at','to','for','of','with','by','from','as',
   'is','was','are','were','be','been','being','have','has','had','do','does','did','will',
@@ -373,7 +352,6 @@ const STOPWORDS = new Set([
   'made','took','began','started','tried','attempted','continued','turned','called'
 ]);
 
-/* ─── MITIGATION KNOWLEDGE BASE ─── */
 const MITIGATION_DB = {
   'Conflict / Airspace Violation': {
     color:'blue', icon:'✈️',
@@ -417,7 +395,6 @@ const MITIGATION_DB = {
   }
 };
 
-/* ─── APP STATE ─── */
 const S = {
   raw: [],
   cols: { narrative:null, date:null, anomaly:[], hf:[], phase:[], categorical:[] },
@@ -425,9 +402,6 @@ const S = {
   charts: {}
 };
 
-// ══════════════════════════════════════════════════════════════
-//  UTILITIES
-// ══════════════════════════════════════════════════════════════
 
 function topN(arr, n=10) {
   return arr.slice(0, n);
@@ -443,7 +417,6 @@ function countValues(data, col) {
 }
 
 function countFlags(data, cols) {
-  // Each col is a boolean-flag column; count how many rows have a non-empty value
   const freq = {};
   cols.forEach(col => {
     const count = data.filter(r => {
@@ -460,16 +433,30 @@ function countFlags(data, cols) {
 
 function parseDate(str) {
   if (!str) return null;
-  str = str.trim();
-  // MM/YYYY
-  let m = str.match(/^(\d{1,2})\/(\d{4})$/);
-  if (m) return new Date(parseInt(m[2]), parseInt(m[1])-1);
-  // YYYY-MM-DD
-  m = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (m) return new Date(parseInt(m[1]), parseInt(m[2])-1, parseInt(m[3]));
+  str = String(str).trim();
+  
+  // YYYYMM (Compact ASRS format like 201601 or 201908)
+  let m = str.match(/^(\d{4})(\d{2})$/);
+  if (m) {
+    const year = parseInt(m[1], 10);
+    const month = parseInt(m[2], 10);
+    if (month >= 1 && month <= 12 && year >= 1970 && year <= 2030) {
+      return new Date(year, month - 1, 1);
+    }
+  }
+
+  // MM/YYYY or M/YYYY
+  m = str.match(/^(\d{1,2})\/(\d{4})$/);
+  if (m) return new Date(parseInt(m[2], 10), parseInt(m[1], 10) - 1, 1);
+
+  // YYYY-MM or YYYY-MM-DD
+  m = str.match(/^(\d{4})-(\d{1,2})(?:-(\d{1,2}))?/);
+  if (m) return new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3] || 1, 10));
+
   // MM/DD/YYYY
   m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (m) return new Date(parseInt(m[3]), parseInt(m[1])-1, parseInt(m[2]));
+  if (m) return new Date(parseInt(m[3], 10), parseInt(m[1], 10) - 1, parseInt(m[2], 10));
+
   return null;
 }
 
@@ -484,77 +471,91 @@ function groupByPeriod(data, dateCol) {
   return Object.entries(freq).sort((a,b) => a[0].localeCompare(b[0]));
 }
 
-// ══════════════════════════════════════════════════════════════
-//  COLUMN DETECTION
-// ══════════════════════════════════════════════════════════════
 
 function detectColumns(data, headers) {
-  const colsLower = {};
-  headers.forEach(h => colsLower[h.toLowerCase()] = h);
-
-  // Priority narrative cols
-  const NARRATIVE_HINTS = ['narrative','synopsis','description','comment','remark','text','report','callback'];
+  const narrativeHints = ['narrative', 'synopsis', 'description', 'comment', 'remark', 'text', 'report', 'callback'];
   let narrativeCol = null;
 
-  // First: explicit hints
-  for (const hint of NARRATIVE_HINTS) {
+  for (const hint of narrativeHints) {
     const match = headers.find(h => h.toLowerCase().includes(hint));
     if (match) { narrativeCol = match; break; }
   }
 
-  // Fallback: longest average text
   if (!narrativeCol) {
     let maxAvg = 0;
     headers.forEach(h => {
-      const avg = data.slice(0,100).reduce((s,r) => s + (r[h]||'').length, 0) / 100;
+      const avg = data.slice(0, 100).reduce((s, r) => s + (r[h] || '').length, 0) / Math.min(data.length, 100);
       if (avg > maxAvg && avg > 30) { maxAvg = avg; narrativeCol = h; }
     });
   }
 
-  // Date column
-  const DATE_HINTS = ['date','month','year','time'];
+  const dateHints = ['date', 'month', 'year', 'time', 'period'];
   let dateCol = null;
-  for (const hint of DATE_HINTS) {
-    const match = headers.find(h => h.toLowerCase().includes(hint));
+  for (const hint of dateHints) {
+    const match = headers.find(h => {
+      const l = h.toLowerCase();
+      return l.endsWith(hint) || l.startsWith(hint) || l === hint;
+    });
     if (match) {
-      // Verify it parses
-      const sample = data.slice(0,20).filter(r => r[match]);
-      const parseable = sample.filter(r => parseDate(r[match]) !== null).length;
-      if (parseable > sample.length * 0.5) { dateCol = match; break; }
+      const sample = data.slice(0, 30).map(r => r[match]).filter(Boolean);
+      const parseable = sample.filter(v => parseDate(v) !== null).length;
+      if (sample.length > 0 && parseable / sample.length > 0.4) {
+        dateCol = match;
+        break;
+      }
     }
   }
 
-  // Flag columns by prefix
-  const anomalyCols = headers.filter(h => h.toLowerCase().includes('anomaly'));
-  const hfCols = headers.filter(h => h.toLowerCase().includes('human factor') || h.toLowerCase().includes('human_factor'));
-  const phaseCols = headers.filter(h => h.toLowerCase().includes('phase') || h.toLowerCase().includes('phase of flight'));
+  // Detect flag columns
+  const anomalyCols = headers.filter(h => {
+    const l = h.toLowerCase();
+    return l.includes('anomaly') || l.includes('events.anomaly') || l.includes('event');
+  });
 
-  // Categorical: low cardinality string columns
+  const hfCols = headers.filter(h => {
+    const l = h.toLowerCase();
+    return l.includes('human factor') || l.includes('human_factor') || l.includes('assessments.human factors');
+  });
+
+  const phaseCols = headers.filter(h => {
+    const l = h.toLowerCase();
+    return l.includes('phase') || l.includes('flight phase');
+  });
+
+  // Detect categorical columns excluding date-like numbers
   const categoricalCols = [];
   headers.forEach(h => {
     if (h === narrativeCol || h === dateCol) return;
     if (anomalyCols.includes(h) || hfCols.includes(h) || phaseCols.includes(h)) return;
-    const vals = data.slice(0,200).map(r => (r[h]||'').trim()).filter(v => v);
+
+    const vals = data.slice(0, 200).map(r => (r[h] || '').trim()).filter(Boolean);
     if (vals.length === 0) return;
+
+    // Check if values are mostly compact dates like 201908
+    const dateLikeCount = vals.filter(v => /^\d{6}$/.test(v) && parseDate(v) !== null).length;
+    if (dateLikeCount / vals.length > 0.5) return;
+
     const uniq = new Set(vals);
-    if (uniq.size <= 30 && uniq.size >= 2 && vals.length > 20) {
+    if (uniq.size <= 30 && uniq.size >= 2 && vals.length > 15) {
       categoricalCols.push(h);
     }
   });
 
-  S.cols = { narrative: narrativeCol, date: dateCol, anomaly: anomalyCols, hf: hfCols, phase: phaseCols, categorical: categoricalCols };
-  console.log('Detected columns:', S.cols);
+  S.cols = {
+    narrative: narrativeCol,
+    date: dateCol,
+    anomaly: anomalyCols,
+    hf: hfCols,
+    phase: phaseCols,
+    categorical: categoricalCols
+  };
 }
 
-// ══════════════════════════════════════════════════════════════
-//  ANALYTICS: OVERVIEW
-// ══════════════════════════════════════════════════════════════
 
 function computeOverview() {
   const data = S.raw;
   const N = data.length;
 
-  // Date range
   let dateRange = 'N/D';
   if (S.cols.date) {
     const dates = data.map(r => parseDate(r[S.cols.date])).filter(d => d && !isNaN(d.getTime()));
@@ -565,16 +566,10 @@ function computeOverview() {
     }
   }
 
-  // Anomaly counts
   const anomaly = countFlags(data, S.cols.anomaly);
-
-  // Human factors
   const hf = countFlags(data, S.cols.hf);
-
-  // Phase of flight
   const phase = countFlags(data, S.cols.phase);
 
-  // Top categorical
   let topCat = null;
   if (S.cols.categorical.length) {
     topCat = { col: S.cols.categorical[0], counts: countValues(data, S.cols.categorical[0]) };
@@ -582,10 +577,6 @@ function computeOverview() {
 
   S.computed.overview = { N, dateRange, anomaly, hf, phase, topCat };
 }
-
-// ══════════════════════════════════════════════════════════════
-//  ANALYTICS: EDA
-// ══════════════════════════════════════════════════════════════
 
 function computeEDA() {
   const data = S.raw;
@@ -597,7 +588,6 @@ function computeEDA() {
     if (counts.length) distros.push({ col, counts });
   });
 
-  // Add anomaly as pseudo-categorical if available
   if (S.cols.anomaly.length && S.computed.overview.anomaly.length) {
     distros.push({ col:'Anomalías', counts: S.computed.overview.anomaly.slice(0,12) });
   }
@@ -607,10 +597,6 @@ function computeEDA() {
 
   S.computed.eda = { timeline, distros };
 }
-
-// ══════════════════════════════════════════════════════════════
-//  ANALYTICS: NLP — TF-IDF + BIGRAMS
-// ══════════════════════════════════════════════════════════════
 
 function tokenize(text) {
   return (text || '').toLowerCase()
@@ -623,17 +609,13 @@ function computeTFIDF(texts, topK=20) {
   const N = texts.length;
   if (N === 0) return [];
 
-  // Tokenize all docs
   const tokenized = texts.map(t => tokenize(t));
-
-  // Document frequency
   const df = {};
   tokenized.forEach(toks => {
     const seen = new Set(toks);
     seen.forEach(t => df[t] = (df[t]||0) + 1);
   });
 
-  // TF-IDF scores summed across corpus
   const scores = {};
   tokenized.forEach(toks => {
     if (!toks.length) return;
@@ -669,18 +651,11 @@ function computeBigrams(texts, topK=15) {
 function computeNLP() {
   if (!S.cols.narrative) { S.computed.nlp = { keywords:[], bigrams:[] }; return; }
   const texts = S.raw.map(r => r[S.cols.narrative]||'').filter(t => t.length > 10);
-  // Sample for performance
   const sample = texts.length > 2000 ? texts.slice(0,2000) : texts;
   const keywords = computeTFIDF(sample, 20);
   const bigrams = computeBigrams(sample, 15);
   S.computed.nlp = { keywords, bigrams };
 }
-
-// ══════════════════════════════════════════════════════════════
-//  ANALYTICS: K-MEANS + PCA 2D
-// ══════════════════════════════════════════════════════════════
-
-function dot(a, b) { return a.reduce((s, v, i) => s + v * b[i], 0); }
 
 function euclidean(a, b) {
   let s = 0;
@@ -689,13 +664,13 @@ function euclidean(a, b) {
 }
 
 function vecNorm(v) { return Math.sqrt(v.reduce((s,x) => s + x*x, 0)); }
+function dot(a, b) { return a.reduce((s, v, i) => s + v * b[i], 0); }
 
 function buildTFIDFMatrix(texts, vocab) {
   const N = texts.length;
   const df = {};
   const tokenized = texts.map(t => tokenize(t));
 
-  // DF for vocab
   tokenized.forEach(toks => {
     const seen = new Set(toks);
     seen.forEach(t => { if (vocab.has(t)) df[t] = (df[t]||0) + 1; });
@@ -713,12 +688,11 @@ function buildTFIDFMatrix(texts, vocab) {
   });
 }
 
-function kmeans(vectors, k, maxIter=30) {
+function kmeans(vectors, k, maxIter=25) {
   const n = vectors.length;
   if (n < k) k = n;
   const d = vectors[0].length;
 
-  // k-means++ init
   const idxs = [];
   idxs.push(Math.floor(Math.random() * n));
   while (idxs.length < k) {
@@ -749,7 +723,6 @@ function kmeans(vectors, k, maxIter=30) {
     }
     if (!changed) break;
 
-    // Update centroids
     const sums = Array.from({length:k}, () => new Array(d).fill(0));
     const cnts = new Array(k).fill(0);
     for (let i = 0; i < n; i++) {
@@ -762,34 +735,21 @@ function kmeans(vectors, k, maxIter=30) {
   return { assignments, centroids };
 }
 
-function powerIteration(matrix, maxIter=80) {
+function powerIteration(matrix, maxIter=50) {
   const d = matrix[0].length;
-  // Compute M^T M * v iteratively
   let v = Array.from({length:d}, () => Math.random()-0.5);
   let nv = vecNorm(v); v = v.map(x => x/nv);
 
   for (let iter = 0; iter < maxIter; iter++) {
-    // Mv = matrix * v (n × 1)
     const mv = matrix.map(row => dot(row, v));
-    // A^T Mv (d × 1)
     const atMv = new Array(d).fill(0);
     matrix.forEach((row, i) => row.forEach((x, j) => atMv[j] += x * mv[i]));
     const n2 = vecNorm(atMv);
     if (n2 < 1e-10) break;
     const vNew = atMv.map(x => x/n2);
-    const diff = vecNorm(v.map((x,i) => x - vNew[i]));
     v = vNew;
-    if (diff < 1e-6) break;
   }
   return v;
-}
-
-function deflateMatrix(matrix, v) {
-  // Remove component along v: A = A - (A * v) * v^T
-  return matrix.map(row => {
-    const proj = dot(row, v);
-    return row.map((x, j) => x - proj * v[j]);
-  });
 }
 
 function pca2D(matrix) {
@@ -797,15 +757,15 @@ function pca2D(matrix) {
   const n = matrix.length;
   const d = matrix[0].length;
 
-  // Center
   const mean = new Array(d).fill(0);
   matrix.forEach(row => row.forEach((v,j) => mean[j] += v/n));
   const centered = matrix.map(row => row.map((v,j) => v - mean[j]));
 
-  // PC1
   const pc1 = powerIteration(centered);
-  // PC2 (deflate)
-  const deflated = deflateMatrix(centered, pc1);
+  const deflated = centered.map(row => {
+    const proj = dot(row, pc1);
+    return row.map((x, j) => x - proj * pc1[j]);
+  });
   const pc2 = powerIteration(deflated);
 
   return centered.map(row => ({ x: dot(row, pc1), y: dot(row, pc2) }));
@@ -817,73 +777,57 @@ function computeClustering() {
   }
 
   const texts = S.raw.map(r => r[S.cols.narrative]||'');
-  // Sample max 600 for performance
-  const SAMPLE = 600;
+  const SAMPLE = 500;
   const sampled = texts.length > SAMPLE ? texts.slice(0, SAMPLE) : texts;
-  const sampledIdx = texts.length > SAMPLE ? Array.from({length:SAMPLE}, (_,i) => i) : Array.from({length:texts.length}, (_,i) => i);
 
-  // Use top 30 TF-IDF terms as vocabulary
   const vocab = new Set(S.computed.nlp.keywords.map(k => k.term));
-
   const matrix = buildTFIDFMatrix(sampled, vocab);
 
-  // K-Means
   const K = 5;
   const { assignments, centroids } = kmeans(matrix, K);
-
-  // PCA 2D
   const points2D = pca2D(matrix);
 
-  // Cluster labels (top terms per centroid)
   const vocabArr = [...vocab];
-  const clusterLabels = centroids.map((centroid, ci) => {
+  const clusterLabels = centroids.map((centroid) => {
     const scored = vocabArr.map((term, j) => ({ term, score: centroid[j] }));
     scored.sort((a,b) => b.score - a.score);
     return scored.slice(0,5).map(s => s.term).join(', ');
   });
 
-  // Cluster sizes
   const sizes = new Array(K).fill(0);
   assignments.forEach(c => sizes[c]++);
 
-  S.computed.clustering = { points2D, assignments, clusterLabels, sizes, K, sampledIdx };
+  S.computed.clustering = { points2D, assignments, clusterLabels, sizes, K };
 }
 
-// ══════════════════════════════════════════════════════════════
-//  ANALYTICS: RISK SCORING
-// ══════════════════════════════════════════════════════════════
 
 const HIGH_RISK_PHASES = ['takeoff','landing','approach','final','descent','initial climb','go-around'];
 
 function scoreRow(row) {
   let score = 0;
 
-  // Anomaly count
   const anomalyCount = S.cols.anomaly.filter(c => {
     const v = (row[c]||'').trim();
     return v && v.toLowerCase() !== 'none';
   }).length;
   score += anomalyCount * 1.5;
 
-  // Human factor count
   const hfCount = S.cols.hf.filter(c => {
     const v = (row[c]||'').trim();
     return v && v.toLowerCase() !== 'none';
   }).length;
   score += hfCount * 1.2;
 
-  // Phase of flight risk
   const phaseActive = S.cols.phase.filter(c => {
     const v = (row[c]||'').trim().toLowerCase();
     return v && HIGH_RISK_PHASES.some(p => v.includes(p));
   }).length;
   score += phaseActive * 1.0;
 
-  // Narrative keyword risk boost
   if (S.cols.narrative) {
     const narr = (row[S.cols.narrative]||'').toLowerCase();
-    const riskWords = ['collision','impact','emergency','mayday','near miss','incursion','loss of control','fire','smoke','stall','TCAS RA'];
-    riskWords.forEach(w => { if (narr.includes(w.toLowerCase())) score += 2; });
+    const riskWords = ['collision','impact','emergency','mayday','near miss','incursion','loss of control','fire','smoke','stall','tcas ra'];
+    riskWords.forEach(w => { if (narr.includes(w)) score += 2; });
   }
 
   let level = 'LOW';
@@ -900,7 +844,6 @@ function computeRisk() {
   const dist = { LOW:0, MEDIUM:0, HIGH:0, CRITICAL:0 };
   scored.forEach(s => dist[s.level]++);
 
-  // Risk factors from overview
   const riskFactors = [];
   if (S.computed.overview.anomaly.length) {
     S.computed.overview.anomaly.slice(0,8).forEach(([k,v]) => riskFactors.push({ label: k, value: v }));
@@ -910,7 +853,6 @@ function computeRisk() {
   }
   riskFactors.sort((a,b) => b.value - a.value);
 
-  // High/critical records for table
   const highRisk = scored.filter(s => s.level === 'HIGH' || s.level === 'CRITICAL')
     .sort((a,b) => b.score - a.score)
     .slice(0, 20);
@@ -918,23 +860,16 @@ function computeRisk() {
   S.computed.risk = { dist, riskFactors, highRisk, scored };
 }
 
-// ══════════════════════════════════════════════════════════════
-//  ANALYTICS: MITIGATION
-// ══════════════════════════════════════════════════════════════
-
 function computeMitigation() {
-  // Match top anomaly labels to mitigation DB
   const topAnomalies = S.computed.overview.anomaly.slice(0,6).map(([k]) => k);
   const cards = [];
 
-  // Try exact and partial match
   topAnomalies.forEach(label => {
     let key = Object.keys(MITIGATION_DB).find(k => label.toLowerCase().includes(k.split('/')[0].trim().toLowerCase()));
     if (!key) key = Object.keys(MITIGATION_DB).find(k => k.toLowerCase().includes(label.split('/')[0].trim().toLowerCase().slice(0,8)));
     if (key) cards.push({ key, ...MITIGATION_DB[key] });
   });
 
-  // Fill remaining slots from DB if < 4
   if (cards.length < 4) {
     Object.entries(MITIGATION_DB).forEach(([key, val]) => {
       if (!cards.find(c => c.key === key)) cards.push({ key, ...val });
@@ -944,9 +879,6 @@ function computeMitigation() {
   S.computed.mitigation = cards.slice(0, 8);
 }
 
-// ══════════════════════════════════════════════════════════════
-//  CHART HELPERS
-// ══════════════════════════════════════════════════════════════
 
 function destroyChart(id) {
   if (S.charts[id]) { S.charts[id].destroy(); delete S.charts[id]; }
@@ -970,19 +902,16 @@ function baseLegend() {
   return { position:'top', labels: { font: baseFont(), color:'#4b5563', boxWidth:12, padding:16 } };
 }
 
-function makeHBar(id, labels, values, color='#3b82f6', title='') {
+function makeHBar(id, labels, values, color='#3b82f6') {
   destroyChart(id);
-  const ctx = document.getElementById(id).getContext('2d');
+  const canvas = document.getElementById(id);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
   S.charts[id] = new Chart(ctx, {
     type:'bar',
     data: {
       labels,
-      datasets: [{
-        data: values,
-        backgroundColor: color,
-        borderRadius: 4,
-        barPercentage: 0.7
-      }]
+      datasets: [{ data: values, backgroundColor: color, borderRadius: 4, barPercentage: 0.7 }]
     },
     options: {
       indexAxis:'y',
@@ -1001,20 +930,27 @@ function makeHBar(id, labels, values, color='#3b82f6', title='') {
 
 function makePie(id, labels, values, colors) {
   destroyChart(id);
-  const ctx = document.getElementById(id).getContext('2d');
+  const canvas = document.getElementById(id);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
   S.charts[id] = new Chart(ctx, {
     type:'doughnut',
     data: { labels, datasets:[{ data:values, backgroundColor:colors, borderWidth:2, borderColor:'#fff' }] },
     options: {
       responsive:true, maintainAspectRatio:false, cutout:'55%',
-      plugins: { legend:baseLegend(), tooltip:{ ...baseTooltip(), callbacks:{ label: ctx => ` ${ctx.label}: ${ctx.raw.toLocaleString('es-CO')} (${Math.round(ctx.raw/values.reduce((a,b)=>a+b,0)*100)}%)` } } }
+      plugins: {
+        legend:baseLegend(),
+        tooltip:{ ...baseTooltip(), callbacks:{ label: ctx => ` ${ctx.label}: ${ctx.raw.toLocaleString('es-CO')}` } }
+      }
     }
   });
 }
 
 function makeLine(id, labels, values, color='#3b82f6') {
   destroyChart(id);
-  const ctx = document.getElementById(id).getContext('2d');
+  const canvas = document.getElementById(id);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
   S.charts[id] = new Chart(ctx, {
     type:'line',
     data: {
@@ -1025,7 +961,6 @@ function makeLine(id, labels, values, color='#3b82f6') {
         backgroundColor: color.replace(')',',0.1)').replace('rgb','rgba'),
         borderWidth: 2,
         pointRadius: values.length > 60 ? 0 : 3,
-        pointHoverRadius: 5,
         fill:true,
         tension: 0.3
       }]
@@ -1047,7 +982,9 @@ function makeLine(id, labels, values, color='#3b82f6') {
 
 function makeScatter(id, datasets) {
   destroyChart(id);
-  const ctx = document.getElementById(id).getContext('2d');
+  const canvas = document.getElementById(id);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
   S.charts[id] = new Chart(ctx, {
     type:'scatter',
     data: { datasets },
@@ -1065,14 +1002,10 @@ function makeScatter(id, datasets) {
   });
 }
 
-// ══════════════════════════════════════════════════════════════
-//  RENDER FUNCTIONS
-// ══════════════════════════════════════════════════════════════
 
 function renderOverview() {
   const { N, dateRange, anomaly, hf, phase, topCat } = S.computed.overview;
 
-  // KPI
   document.getElementById('kpi-grid').innerHTML = `
     <div class="card"><div class="card-title">Total Reportes</div><div class="card-value">${N.toLocaleString('es-CO')}</div><div class="card-sub">registros en el dataset</div></div>
     <div class="card"><div class="card-title">Rango Temporal</div><div class="card-value" style="font-size:1.1rem;padding-top:.4rem">${dateRange}</div></div>
@@ -1082,26 +1015,22 @@ function renderOverview() {
   `;
   document.getElementById('overview-sub').textContent = `${N.toLocaleString('es-CO')} registros · ${dateRange}`;
 
-  // Anomaly chart
   if (anomaly.length) {
     const top = topN(anomaly, 10);
     makeHBar('chart-anomaly', top.map(([k])=>k), top.map(([,v])=>v), '#3b82f6');
   }
 
-  // HF chart
   if (hf.length) {
     const top = topN(hf, 10);
     makeHBar('chart-hf', top.map(([k])=>k), top.map(([,v])=>v), '#0d9488');
   }
 
-  // Phase chart
   if (phase.length) {
     const top = topN(phase, 10);
     makeHBar('chart-phase', top.map(([k])=>k), top.map(([,v])=>v), '#d97706');
   }
 
-  // Categorical
-  if (topCat) {
+  if (topCat && topCat.counts.length) {
     const top = topN(topCat.counts, 8);
     makePie('chart-cat', top.map(([k])=>k), top.map(([,v])=>v), CAT_COLORS);
   } else if (anomaly.length) {
@@ -1123,7 +1052,7 @@ function renderEDA() {
     const id = `eda-chart-${i}`;
     container.innerHTML += `<div class="chart-box"><h3>${d.col}</h3><div class="chart-wrap"><canvas id="${id}"></canvas></div></div>`;
   });
-  // Render after DOM update
+
   requestAnimationFrame(() => {
     distros.forEach((d, i) => {
       const id = `eda-chart-${i}`;
@@ -1167,24 +1096,21 @@ function renderNLP() {
 
 function renderClustering() {
   const c = S.computed.clustering;
-  if (!c) { return; }
+  if (!c) return;
 
   const { points2D, assignments, clusterLabels, sizes, K } = c;
 
-  // Build dataset per cluster
   const datasets = Array.from({length:K}, (_, ci) => ({
     label: `Cluster ${ci+1}`,
     data: points2D
       .filter((_,i) => assignments[i] === ci)
       .map(p => ({ x: p.x, y: p.y })),
     backgroundColor: CLUSTER_COLORS[ci] + 'aa',
-    pointRadius: 4,
-    pointHoverRadius: 6
+    pointRadius: 4
   }));
 
   makeScatter('chart-cluster-scatter', datasets);
 
-  // Cluster info cards
   const container = document.getElementById('cluster-info');
   container.innerHTML = clusterLabels.map((terms, ci) => `
     <div class="cluster-card" style="border-left:3px solid ${CLUSTER_COLORS[ci]}">
@@ -1197,7 +1123,6 @@ function renderClustering() {
 function renderRisk() {
   const { dist, riskFactors, highRisk } = S.computed.risk;
 
-  // Distribution donut
   const levels = ['LOW','MEDIUM','HIGH','CRITICAL'];
   const lvlLabels = ['Bajo','Medio','Alto','Crítico'];
   makePie('chart-risk-dist',
@@ -1206,14 +1131,18 @@ function renderRisk() {
     ['#16a34a','#d97706','#dc2626','#7f1d1d']
   );
 
-  // Risk factors bar
   if (riskFactors.length) {
     const top = riskFactors.slice(0,12);
     makeHBar('chart-risk-factors', top.map(r=>r.label), top.map(r=>r.value), '#dc2626');
   }
 
-  // Table
-  const levelBadge = { LOW:'<span class="badge badge-green">Bajo</span>', MEDIUM:'<span class="badge badge-amber">Medio</span>', HIGH:'<span class="badge badge-red">Alto</span>', CRITICAL:'<span class="badge badge-red" style="background:#7f1d1d;color:#fff">Crítico</span>' };
+  const levelBadge = {
+    LOW:'<span class="badge badge-green">Bajo</span>',
+    MEDIUM:'<span class="badge badge-amber">Medio</span>',
+    HIGH:'<span class="badge badge-red">Alto</span>',
+    CRITICAL:'<span class="badge badge-red" style="background:#7f1d1d;color:#fff">Crítico</span>'
+  };
+
   const tbody = document.getElementById('risk-tbody');
   tbody.innerHTML = highRisk.map((s, i) => {
     const narr = S.cols.narrative ? (s.row[S.cols.narrative]||'').slice(0,120)+'...' : 'N/D';
@@ -1235,9 +1164,6 @@ function renderMitigation() {
   `).join('');
 }
 
-// ══════════════════════════════════════════════════════════════
-//  TAB NAVIGATION
-// ══════════════════════════════════════════════════════════════
 
 const TABS = ['upload','overview','eda','nlp','clustering','risk','mitigation'];
 
@@ -1251,7 +1177,6 @@ function switchTab(tab) {
   const btn = document.getElementById(`btn-${tab}`);
   if (btn) btn.classList.add('active');
 
-  // Lazy render
   if (tab === 'overview' && S.computed.overview) renderOverview();
   if (tab === 'eda' && S.computed.eda) renderEDA();
   if (tab === 'nlp' && S.computed.nlp) renderNLP();
@@ -1267,10 +1192,6 @@ function unlockTabs() {
   });
 }
 
-// ══════════════════════════════════════════════════════════════
-//  STATUS / PROGRESS
-// ══════════════════════════════════════════════════════════════
-
 function setStatus(text, state='loading') {
   document.getElementById('status-text').textContent = text;
   const dot = document.getElementById('status-dot');
@@ -1284,13 +1205,14 @@ function setProgress(pct, msg) {
   document.getElementById('progress-msg').textContent = msg;
 }
 
-// ══════════════════════════════════════════════════════════════
-//  CSV PROCESSING PIPELINE
-// ══════════════════════════════════════════════════════════════
+function tick() {
+  return new Promise(r => setTimeout(r, 0));
+}
+
 
 async function processCSV(data, headers) {
   S.raw = data;
-  setProgress(10, 'Detectando columnas...');
+  setProgress(10, 'Detectando columnas ASRS...');
   await tick();
 
   detectColumns(data, headers);
@@ -1323,17 +1245,8 @@ async function processCSV(data, headers) {
   unlockTabs();
   setStatus(`${data.length.toLocaleString('es-CO')} registros cargados`, 'ready');
 
-  // Navigate to overview
   setTimeout(() => switchTab('overview'), 400);
 }
-
-function tick() {
-  return new Promise(r => setTimeout(r, 0));
-}
-
-// ══════════════════════════════════════════════════════════════
-//  FILE UPLOAD / DRAG & DROP
-// ══════════════════════════════════════════════════════════════
 
 function handleFile(file) {
   if (!file) return;
@@ -1342,15 +1255,56 @@ function handleFile(file) {
   setProgress(5, `Leyendo ${file.name}...`);
 
   Papa.parse(file, {
-    header: true,
+    header: false,
     skipEmptyLines: true,
     complete: function(results) {
       if (!results.data || results.data.length === 0) {
         setStatus('CSV vacío o inválido', 'none');
         return;
       }
-      const headers = results.meta.fields || Object.keys(results.data[0]);
-      processCSV(results.data, headers);
+
+      const rawRows = results.data;
+      let finalHeaders = [];
+      let startRowIndex = 1;
+
+      // Check for ASRS Double Header
+      const firstRow = rawRows[0] || [];
+      const secondRow = rawRows[1] || [];
+
+      const doubleHeaderIndicators = ['time', 'place', 'environment', 'assessments', 'events', 'aircraft 1', 'person 1'];
+      const isDoubleHeader = firstRow.some(cell => doubleHeaderIndicators.includes(String(cell).trim().toLowerCase()));
+
+      if (isDoubleHeader && rawRows.length > 2) {
+        startRowIndex = 2;
+        finalHeaders = secondRow.map((colName, idx) => {
+          const group = String(firstRow[idx] || '').trim();
+          const col = String(colName || '').trim();
+          if (!col) return group || `Col_${idx}`;
+          if (group && !col.toLowerCase().startsWith(group.toLowerCase())) {
+            return `${group}.${col}`;
+          }
+          return col;
+        });
+      } else {
+        finalHeaders = firstRow.map((c, i) => String(c).trim() || `Col_${i}`);
+        startRowIndex = 1;
+      }
+
+      // Convert rows to JS Objects using generated headers
+      const parsedData = [];
+      for (let i = startRowIndex; i < rawRows.length; i++) {
+        const rowObj = {};
+        const rowArr = rawRows[i];
+        let hasData = false;
+        finalHeaders.forEach((h, colIdx) => {
+          const val = rowArr[colIdx] ? String(rowArr[colIdx]).trim() : '';
+          rowObj[h] = val;
+          if (val) hasData = true;
+        });
+        if (hasData) parsedData.push(rowObj);
+      }
+
+      processCSV(parsedData, finalHeaders);
     },
     error: function(err) {
       setStatus('Error al leer CSV', 'none');
@@ -1359,7 +1313,7 @@ function handleFile(file) {
   });
 }
 
-// Drop zone
+
 const dropZone = document.getElementById('drop-zone');
 dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
 dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
@@ -1375,13 +1329,10 @@ document.getElementById('file-input').addEventListener('change', e => {
   if (file) handleFile(file);
 });
 
-// ══════════════════════════════════════════════════════════════
-//  INIT
-// ══════════════════════════════════════════════════════════════
 Chart.defaults.font.family = 'Inter';
 Chart.defaults.color = '#6b7280';
 setStatus('Sin datos', 'none');
-console.log('ASRS Static Analysis ready. Drop a CSV file to begin.');
+console.log('ASRS Dynamic Parsing Analysis ready.');
 </script>
 </body>
 </html>

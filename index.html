@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ASRS Human Error Analysis — Static</title>
+  <title>ASRS Human Error Analysis — v2.0</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
@@ -117,6 +117,15 @@
     .format-guide li { font-size: .8rem; color: var(--gray-500); padding: .25rem 0; padding-left: 1rem; position: relative; }
     .format-guide li::before { content: '·'; position: absolute; left: 0; color: var(--blue); }
 
+    /* ── NOTA METODOLÓGICA (v2.0) ── */
+    .method-note {
+      background: #f8fafc; border-left: 3px solid var(--teal);
+      border-radius: 6px; padding: .7rem .9rem; margin-bottom: 1rem;
+      font-size: .78rem; color: var(--gray-600); line-height: 1.55;
+    }
+    .method-note strong { color: var(--navy); }
+    .method-note em { color: var(--amber); font-style: normal; font-weight: 500; }
+
     /* ── PROGRESS ── */
     .progress-bar { height: 4px; background: var(--gray-200); border-radius: 2px; overflow: hidden; margin: 1rem 0; }
     .progress-fill { height: 100%; background: var(--blue); border-radius: 2px; transition: width .3s; }
@@ -177,7 +186,7 @@
 <body>
 <header>
   <div class="header-inner">
-    <div class="logo">ASRS <span>Error Analysis</span></div>
+    <div class="logo">ASRS <span>Error Analysis</span> <span style="font-size:.7rem;opacity:.6;font-weight:400">v2.0</span></div>
     <nav>
       <button class="nav-btn active" onclick="switchTab('upload')" id="btn-upload">📂 Cargar</button>
       <button class="nav-btn" onclick="switchTab('overview')" id="btn-overview" disabled>📊 Visión General</button>
@@ -256,6 +265,12 @@
       <h2>Análisis Exploratorio (EDA)</h2>
       <p>Distribuciones de variables y evolución en el tiempo</p>
     </div>
+    <div class="method-note">
+      <strong>Lectura de la serie temporal.</strong> El conteo de reportes refleja el volumen de
+      actividad y la propensión a reportar, no la tasa de incidentes por operación.
+      <em>Sin un denominador operacional (ciclos de vuelo u horas voladas), un descenso en la
+      serie no debe interpretarse como mejora de la seguridad.</em>
+    </div>
     <div class="chart-box" style="margin-bottom:1.25rem">
       <h3>Reportes por Período</h3>
       <div class="chart-wrap-lg"><canvas id="chart-timeline"></canvas></div>
@@ -285,10 +300,11 @@
   <div class="tab-panel" id="tab-clustering">
     <div class="section-header">
       <h2>Clustering de Reportes</h2>
-      <p>K-Means (k=5) sobre vectores TF-IDF con reducción PCA 2D</p>
+      <p>TF-IDF disperso → LSA → K-Means (k=6) sobre el corpus completo</p>
     </div>
+    <div class="method-note" id="cluster-meta"></div>
     <div class="chart-box" style="margin-bottom:1.25rem">
-      <h3>Mapa de Clusters (PCA 2D)</h3>
+      <h3>Mapa de Clusters (proyección 2D del espacio latente)</h3>
       <div class="chart-wrap-xl"><canvas id="chart-cluster-scatter"></canvas></div>
     </div>
     <div class="cluster-grid" id="cluster-info"></div>
@@ -298,8 +314,9 @@
   <div class="tab-panel" id="tab-risk">
     <div class="section-header">
       <h2>Perfil de Riesgo</h2>
-      <p>Matriz de clasificación de riesgo por severidad y multiplicadores de impacto</p>
+      <p>Índice de Riesgo Compuesto (IRC) calibrado sobre la distribución empírica</p>
     </div>
+    <div class="method-note" id="risk-meta"></div>
     <div class="charts-grid" style="margin-bottom:1.25rem">
       <div class="chart-box">
         <h3>Distribución de Niveles de Riesgo</h3>
@@ -349,7 +366,11 @@ const STOPWORDS = new Set([
   'radar','traffic','approach','departure','en','route','center','sector','frequency',
   'clearance','altitude','heading','speed','position','report','reported','reporting',
   'asked','told','said','heard','thought','knew','aware','observed','noticed','saw',
-  'made','took','began','started','tried','attempted','continued','turned','called'
+  'made','took','began','started','tried','attempted','continued','turned','called',
+  // v2.0 — artefactos de desidentificación del ASRS: marcadores que sustituyen
+  // aeropuertos, aerolíneas y localidades. Carecen de contenido semántico y contaminan
+  // el vocabulario analítico (aparecían en el top-20 TF-IDF de la v1.0).
+  'zzz','zzzz','zzz1','zzz2','zzzzz','aaa','bbb','ccc','xxx','xyz'
 ]);
 
 const MITIGATION_DB = {
@@ -473,13 +494,21 @@ function groupByPeriod(data, dateCol) {
 
 
 function detectColumns(data, headers) {
-  const narrativeHints = ['narrative', 'synopsis', 'description', 'comment', 'remark', 'text', 'report', 'callback'];
-  let narrativeCol = null;
-
+  // v2.0 — prioridad explícita + verificación de longitud media (evita 'Reporter Organization',
+  // 'ASRS Report Number' y otros campos categóricos que contienen la subcadena 'report')
+  const narrativeHints = ['narrative', 'synopsis', 'callback', 'description', 'remark', 'comment'];
+  const avgLen = h => {
+    const n = Math.min(data.length, 150);
+    return data.slice(0, n).reduce((s, r) => s + (r[h] || '').length, 0) / Math.max(n, 1);
+  };
+  let narrativeCols = [];
   for (const hint of narrativeHints) {
-    const match = headers.find(h => h.toLowerCase().includes(hint));
-    if (match) { narrativeCol = match; break; }
+    headers.forEach(h => {
+      if (h.toLowerCase().includes(hint) && avgLen(h) > 40 && !narrativeCols.includes(h))
+        narrativeCols.push(h);
+    });
   }
+  let narrativeCol = narrativeCols[0] || null;
 
   if (!narrativeCol) {
     let maxAvg = 0;
@@ -543,6 +572,7 @@ function detectColumns(data, headers) {
 
   S.cols = {
     narrative: narrativeCol,
+    narrativeAll: narrativeCols,
     date: dateCol,
     anomaly: anomalyCols,
     hf: hfCols,
@@ -667,25 +697,62 @@ function vecNorm(v) { return Math.sqrt(v.reduce((s,x) => s + x*x, 0)); }
 function dot(a, b) { return a.reduce((s, v, i) => s + v * b[i], 0); }
 
 function buildTFIDFMatrix(texts, vocab) {
+  // v2.1 — representación dispersa CSR. La matriz TF-IDF es ~96 % ceros; almacenarla
+  // densa (1.003 × 3.000 = 3M celdas) hacía inviable la iteración de potencias.
   const N = texts.length;
-  const df = {};
+  const vocabArr = [...vocab];
+  const idx = new Map(vocabArr.map((t,i) => [t,i]));
+  const df = new Float64Array(vocabArr.length);
   const tokenized = texts.map(t => tokenize(t));
 
   tokenized.forEach(toks => {
-    const seen = new Set(toks);
-    seen.forEach(t => { if (vocab.has(t)) df[t] = (df[t]||0) + 1; });
+    const seen = new Set();
+    toks.forEach(t => { const k = idx.get(t); if (k !== undefined) seen.add(k); });
+    seen.forEach(k => df[k]++);
   });
 
-  return tokenized.map(toks => {
-    if (!toks.length) return vocab.size ? new Array(vocab.size).fill(0) : [0];
-    const tf = {};
-    toks.forEach(t => { if (vocab.has(t)) tf[t] = (tf[t]||0) + 1; });
-    return [...vocab].map(term => {
-      const cnt = tf[term]||0;
-      if (!cnt) return 0;
-      return (cnt / toks.length) * Math.log(1 + N / (df[term]||1));
+  const values = [], colIdx = [], rowPtr = new Int32Array(N + 1);
+  tokenized.forEach((toks, r) => {
+    rowPtr[r] = values.length;
+    if (!toks.length) return;
+    const tf = new Map();
+    toks.forEach(t => { const k = idx.get(t); if (k !== undefined) tf.set(k, (tf.get(k)||0)+1); });
+    const L = toks.length;
+    const entries = [...tf.entries()].sort((a,b) => a[0]-b[0]);
+    let sq = 0;
+    const tmp = entries.map(([k,c]) => {
+      const w = (1 + Math.log(c)) / L * Math.log(1 + N / (df[k]||1));  // tf sublineal
+      sq += w*w; return [k,w];
     });
+    const nrm = Math.sqrt(sq) || 1;
+    tmp.forEach(([k,w]) => { colIdx.push(k); values.push(w/nrm); });
   });
+  rowPtr[N] = values.length;
+
+  return { values: Float64Array.from(values), colIdx: Int32Array.from(colIdx),
+           rowPtr, nRows: N, nCols: vocabArr.length, vocabArr };
+}
+
+// Producto disperso A·v  (longitud nRows)
+function csrMulVec(A, v) {
+  const out = new Float64Array(A.nRows);
+  for (let r = 0; r < A.nRows; r++) {
+    let s = 0;
+    for (let p = A.rowPtr[r]; p < A.rowPtr[r+1]; p++) s += A.values[p] * v[A.colIdx[p]];
+    out[r] = s;
+  }
+  return out;
+}
+
+// Producto disperso Aᵀ·u  (longitud nCols)
+function csrTMulVec(A, u) {
+  const out = new Float64Array(A.nCols);
+  for (let r = 0; r < A.nRows; r++) {
+    const ur = u[r];
+    if (ur === 0) continue;
+    for (let p = A.rowPtr[r]; p < A.rowPtr[r+1]; p++) out[A.colIdx[p]] += A.values[p] * ur;
+  }
+  return out;
 }
 
 function kmeans(vectors, k, maxIter=25) {
@@ -768,96 +835,212 @@ function pca2D(matrix) {
   });
   const pc2 = powerIteration(deflated);
 
-  return centered.map(row => ({ x: dot(row, pc1), y: dot(row, pc2) }));
+  const points = centered.map(row => ({ x: dot(row, pc1), y: dot(row, pc2) }));
+  // v2.0 — proporción de varianza retenida, para declararla en los ejes
+  const totVar = centered.reduce((s,row) => s + row.reduce((a,v)=>a+v*v,0), 0) || 1;
+  const v1 = points.reduce((s,p)=>s+p.x*p.x,0) / totVar;
+  const v2 = points.reduce((s,p)=>s+p.y*p.y,0) / totVar;
+  return { points, varPC1: v1, varPC2: v2 };
+}
+
+function buildVocabulary(texts, minDF=5, maxDFRatio=0.60, maxFeatures=1500) {
+  // v2.0 — vocabulario por filtros de frecuencia documental, no por top-20 TF-IDF.
+  // La v1.0 usaba 20 términos (0,21 % del léxico, 21,8 % de la masa TF-IDF).
+  // v2.1 — tope de 1.500 términos: cubre el léxico discriminante manteniendo
+  // el cómputo por debajo de 3 s en el navegador.
+  const N = texts.length, df = {};
+  texts.forEach(t => new Set(tokenize(t)).forEach(w => df[w] = (df[w]||0)+1));
+  const maxDF = Math.floor(N * maxDFRatio);
+  return Object.entries(df)
+    .filter(([w,c]) => c >= minDF && c <= maxDF)
+    .sort((a,b) => b[1]-a[1])
+    .slice(0, maxFeatures)
+    .map(([w]) => w)
+    .sort();
+}
+
+function truncatedSVD(A, k, iters=15) {
+  // v2.1 — LSA por iteración de potencias sobre matriz dispersa, con deflación
+  // explícita de los componentes ya extraídos. No se centra la matriz: el análisis
+  // semántico latente opera sobre la matriz término-documento sin centrar
+  // (centrar destruiría la dispersión sin aportar a la interpretación semántica).
+  const comps = [], sv = [];
+  let totalVar = 0;
+  for (let p = 0; p < A.values.length; p++) totalVar += A.values[p] * A.values[p];
+
+  for (let c = 0; c < k; c++) {
+    let v = new Float64Array(A.nCols);
+    for (let i = 0; i < A.nCols; i++) v[i] = Math.random() - 0.5;
+    let nv = 0; for (let i=0;i<A.nCols;i++) nv += v[i]*v[i]; nv = Math.sqrt(nv) || 1;
+    for (let i = 0; i < A.nCols; i++) v[i] /= nv;
+
+    for (let it = 0; it < iters; it++) {
+      // w = Aᵀ(Av) — evita formar AᵀA explícitamente
+      const Av = csrMulVec(A, v);
+      const w = csrTMulVec(A, Av);
+      // Deflación por ortogonalización de Gram-Schmidt contra los componentes ya hallados
+      for (let d = 0; d < comps.length; d++) {
+        const cd = comps[d];
+        let dw = 0;
+        for (let i = 0; i < A.nCols; i++) dw += cd[i] * w[i];
+        for (let i = 0; i < A.nCols; i++) w[i] -= dw * cd[i];
+      }
+      let n2 = 0; for (let i=0;i<A.nCols;i++) n2 += w[i]*w[i]; n2 = Math.sqrt(n2);
+      if (n2 < 1e-12) break;
+      for (let i = 0; i < A.nCols; i++) w[i] /= n2;
+      v = w;
+    }
+    const proj = csrMulVec(A, v);
+    let ps=0; for (let r=0;r<A.nRows;r++) ps += proj[r]*proj[r]; sv.push(Math.sqrt(ps));
+    comps.push(v);
+  }
+
+  // Proyección de los documentos y normalización a norma unitaria
+  const Z = [];
+  for (let r = 0; r < A.nRows; r++) {
+    const z = new Array(k).fill(0);
+    for (let p = A.rowPtr[r]; p < A.rowPtr[r+1]; p++) {
+      const col = A.colIdx[p], val = A.values[p];
+      for (let c = 0; c < k; c++) z[c] += val * comps[c][col];
+    }
+    let nz = Math.sqrt(z.reduce((s,x)=>s+x*x,0)) || 1;
+    Z.push(z.map(x => x/nz));
+  }
+  const explained = sv.reduce((s,x)=>s+x*x,0) / (totalVar || 1);
+  return { Z, comps, explained, sv };
 }
 
 function computeClustering() {
-  if (!S.cols.narrative || !S.computed.nlp || !S.computed.nlp.keywords.length) {
-    S.computed.clustering = null; return;
+  if (!S.cols.narrative) { S.computed.clustering = null; return; }
+
+  // v2.0 — corpus COMPLETO. La v1.0 truncaba a los primeros 500 reportes
+  // (ARI muestra-vs-total = 0,67: un tercio de la estructura cambiaba).
+  const narrCols = S.cols.narrativeAll && S.cols.narrativeAll.length
+      ? S.cols.narrativeAll : [S.cols.narrative];
+  const texts = S.raw.map(r => narrCols.map(c => r[c]||'').join(' ').trim());
+  const valid = texts.map((t,i)=>({t,i})).filter(o => o.t.length > 10);
+  if (valid.length < 20) { S.computed.clustering = null; return; }
+
+  const vocab = new Set(buildVocabulary(valid.map(o=>o.t)));
+  if (vocab.size < 10) { S.computed.clustering = null; return; }
+
+  // v2.1 — matriz dispersa CSR
+  const A = buildTFIDFMatrix(valid.map(o=>o.t), vocab);
+
+  // v2.0 — reducción de dimensionalidad antes del agrupamiento
+  const nComp = Math.min(40, A.nCols - 1, A.nRows - 1);
+  const { Z, comps, explained } = truncatedSVD(A, nComp);
+
+  const K = 6;
+  const { assignments } = kmeans(Z, K);
+
+  // Etiquetas: término de mayor peso TF-IDF medio dentro de cada conglomerado
+  const vocabArr = A.vocabArr;
+  const sums = Array.from({length:K}, () => new Float64Array(A.nCols));
+  const counts = new Array(K).fill(0);
+  for (let r = 0; r < A.nRows; r++) {
+    const c = assignments[r]; counts[c]++;
+    for (let p = A.rowPtr[r]; p < A.rowPtr[r+1]; p++) sums[c][A.colIdx[p]] += A.values[p];
   }
-
-  const texts = S.raw.map(r => r[S.cols.narrative]||'');
-  const SAMPLE = 500;
-  const sampled = texts.length > SAMPLE ? texts.slice(0, SAMPLE) : texts;
-
-  const vocab = new Set(S.computed.nlp.keywords.map(k => k.term));
-  const matrix = buildTFIDFMatrix(sampled, vocab);
-
-  const K = 5;
-  const { assignments, centroids } = kmeans(matrix, K);
-  const points2D = pca2D(matrix);
-
-  const vocabArr = [...vocab];
-  const clusterLabels = centroids.map((centroid) => {
-    const scored = vocabArr.map((term, j) => ({ term, score: centroid[j] }));
-    scored.sort((a,b) => b.score - a.score);
-    return scored.slice(0,5).map(s => s.term).join(', ');
+  const clusterLabels = sums.map((vec, ci) => {
+    const n = Math.max(counts[ci], 1);
+    return vocabArr.map((term,j) => ({term, score: vec[j]/n}))
+      .sort((a,b) => b.score - a.score).slice(0,6).map(x => x.term).join(', ');
   });
 
+  const pca = pca2D(Z);
   const sizes = new Array(K).fill(0);
   assignments.forEach(c => sizes[c]++);
 
-  S.computed.clustering = { points2D, assignments, clusterLabels, sizes, K };
+  S.computed.clustering = {
+    points2D: pca.points, assignments, clusterLabels, sizes, K,
+    varPC1: pca.varPC1, varPC2: pca.varPC2,
+    lsaVar: explained, lsaComp: nComp, vocabSize: A.nCols, nDocs: A.nRows
+  };
 }
-
 
 const HIGH_RISK_PHASES = ['takeoff','landing','approach','final','descent','initial climb','go-around'];
 
-function scoreRow(row) {
-  let score = 0;
-
+function rowComponents(row) {
   const anomalyCount = S.cols.anomaly.filter(c => {
-    const v = (row[c]||'').trim();
-    return v && v.toLowerCase() !== 'none';
+    const v = (row[c]||'').trim(); return v && v.toLowerCase() !== 'none';
   }).length;
-  score += anomalyCount * 1.5;
-
   const hfCount = S.cols.hf.filter(c => {
-    const v = (row[c]||'').trim();
-    return v && v.toLowerCase() !== 'none';
+    const v = (row[c]||'').trim(); return v && v.toLowerCase() !== 'none';
   }).length;
-  score += hfCount * 1.2;
-
   const phaseActive = S.cols.phase.filter(c => {
     const v = (row[c]||'').trim().toLowerCase();
     return v && HIGH_RISK_PHASES.some(p => v.includes(p));
   }).length;
-  score += phaseActive * 1.0;
-
+  let sev = 0;
   if (S.cols.narrative) {
-    const narr = (row[S.cols.narrative]||'').toLowerCase();
-    const riskWords = ['collision','impact','emergency','mayday','near miss','incursion','loss of control','fire','smoke','stall','tcas ra'];
-    riskWords.forEach(w => { if (narr.includes(w)) score += 2; });
+    const narrCols = S.cols.narrativeAll && S.cols.narrativeAll.length
+        ? S.cols.narrativeAll : [S.cols.narrative];
+    const narr = narrCols.map(c => (row[c]||'')).join(' ').toLowerCase();
+    const riskWords = ['collision','impact','emergency','mayday','near miss','incursion',
+                       'loss of control','fire','smoke','stall','tcas ra'];
+    riskWords.forEach(w => { if (narr.includes(w)) sev++; });
   }
+  return { anom: anomalyCount, hf: hfCount, fase: phaseActive, sev };
+}
 
-  let level = 'LOW';
-  if (score >= 8) level = 'CRITICAL';
-  else if (score >= 5) level = 'HIGH';
-  else if (score >= 2) level = 'MEDIUM';
+// v2.0 — pesos normalizados que suman 1; el IRC se lee como % del riesgo máximo observable
+const IRC_WEIGHTS = { anom: 0.35, hf: 0.30, fase: 0.15, sev: 0.20 };
 
-  return { score: Math.round(score*10)/10, level, anomalyCount, hfCount };
+function quantile(sorted, q) {
+  if (!sorted.length) return 0;
+  const pos = (sorted.length - 1) * q, base = Math.floor(pos), rest = pos - base;
+  return sorted[base + 1] !== undefined
+    ? sorted[base] + rest * (sorted[base + 1] - sorted[base])
+    : sorted[base];
 }
 
 function computeRisk() {
-  const scored = S.raw.map((row, i) => ({ i, row, ...scoreRow(row) }));
+  // v2.0 — recalibración por cuantiles. La v1.0 usaba umbrales absolutos (2/5/8) que
+  // clasificaban el 97,7 % de los reportes como ALTO o CRÍTICO y ninguno como BAJO.
+  const comps = S.raw.map(rowComponents);
+  const keys = ['anom','hf','fase','sev'];
+  const mins = {}, maxs = {};
+  keys.forEach(k => {
+    mins[k] = Math.min(...comps.map(c => c[k]));
+    maxs[k] = Math.max(...comps.map(c => c[k]));
+  });
+
+  const raw = comps.map(c => {
+    let s = 0;
+    keys.forEach(k => {
+      const range = (maxs[k] - mins[k]) || 1;
+      s += ((c[k] - mins[k]) / range) * IRC_WEIGHTS[k];
+    });
+    return Math.round(s * 1000) / 10;              // escala 0–100
+  });
+
+  const sorted = [...raw].sort((a,b) => a-b);
+  const cut = { med: quantile(sorted,0.50), alto: quantile(sorted,0.80), crit: quantile(sorted,0.95) };
+
+  const levelOf = v => v >= cut.crit ? 'CRITICAL'
+                     : v >= cut.alto ? 'HIGH'
+                     : v >= cut.med  ? 'MEDIUM' : 'LOW';
+
+  const scored = S.raw.map((row,i) => ({
+    i, row, score: raw[i], level: levelOf(raw[i]),
+    anomalyCount: comps[i].anom, hfCount: comps[i].hf
+  }));
 
   const dist = { LOW:0, MEDIUM:0, HIGH:0, CRITICAL:0 };
   scored.forEach(s => dist[s.level]++);
 
   const riskFactors = [];
-  if (S.computed.overview.anomaly.length) {
-    S.computed.overview.anomaly.slice(0,8).forEach(([k,v]) => riskFactors.push({ label: k, value: v }));
-  }
-  if (S.computed.overview.hf.length) {
-    S.computed.overview.hf.slice(0,5).forEach(([k,v]) => riskFactors.push({ label: k, value: v }));
-  }
+  if (S.computed.overview.anomaly.length)
+    S.computed.overview.anomaly.slice(0,8).forEach(([k,v]) => riskFactors.push({label:k, value:v}));
+  if (S.computed.overview.hf.length)
+    S.computed.overview.hf.slice(0,5).forEach(([k,v]) => riskFactors.push({label:k, value:v}));
   riskFactors.sort((a,b) => b.value - a.value);
 
   const highRisk = scored.filter(s => s.level === 'HIGH' || s.level === 'CRITICAL')
-    .sort((a,b) => b.score - a.score)
-    .slice(0, 20);
+    .sort((a,b) => b.score - a.score).slice(0, 20);
 
-  S.computed.risk = { dist, riskFactors, highRisk, scored };
+  S.computed.risk = { dist, riskFactors, highRisk, scored, cuts: cut, weights: IRC_WEIGHTS };
 }
 
 function computeMitigation() {
@@ -980,7 +1163,7 @@ function makeLine(id, labels, values, color='#3b82f6') {
   });
 }
 
-function makeScatter(id, datasets) {
+function makeScatter(id, datasets, axisTitles) {
   destroyChart(id);
   const canvas = document.getElementById(id);
   if (!canvas) return;
@@ -995,8 +1178,8 @@ function makeScatter(id, datasets) {
         tooltip:{ ...baseTooltip(), callbacks:{ label: ctx => `Cluster ${ctx.datasetIndex+1}` } }
       },
       scales:{
-        x:{ grid:{color:'#f3f4f6'}, ticks:{font:baseFont(),color:'#6b7280'}, title:{display:true,text:'PC1',font:baseFont(),color:'#9ca3af'}, border:{display:false} },
-        y:{ grid:{color:'#f3f4f6'}, ticks:{font:baseFont(),color:'#6b7280'}, title:{display:true,text:'PC2',font:baseFont(),color:'#9ca3af'}, border:{display:false} }
+        x:{ grid:{color:'#f3f4f6'}, ticks:{font:baseFont(),color:'#6b7280'}, title:{display:true,text:(axisTitles&&axisTitles[0])||'PC1',font:baseFont(),color:'#9ca3af'}, border:{display:false} },
+        y:{ grid:{color:'#f3f4f6'}, ticks:{font:baseFont(),color:'#6b7280'}, title:{display:true,text:(axisTitles&&axisTitles[1])||'PC2',font:baseFont(),color:'#9ca3af'}, border:{display:false} }
       }
     }
   });
@@ -1098,7 +1281,8 @@ function renderClustering() {
   const c = S.computed.clustering;
   if (!c) return;
 
-  const { points2D, assignments, clusterLabels, sizes, K } = c;
+  const { points2D, assignments, clusterLabels, sizes, K, varPC1, varPC2, lsaVar, lsaComp, vocabSize, nDocs } = c;
+  const pct = v => (v*100).toFixed(1).replace('.',',');
 
   const datasets = Array.from({length:K}, (_, ci) => ({
     label: `Cluster ${ci+1}`,
@@ -1109,7 +1293,20 @@ function renderClustering() {
     pointRadius: 4
   }));
 
-  makeScatter('chart-cluster-scatter', datasets);
+  // v2.0 — la varianza retenida se declara en los ejes: sin este dato la proximidad
+  // visual entre puntos no es interpretable.
+  makeScatter('chart-cluster-scatter', datasets, [
+    `Componente 1 (${pct(varPC1)} % var.)`,
+    `Componente 2 (${pct(varPC2)} % var.)`
+  ]);
+
+  const meta = document.getElementById('cluster-meta');
+  if (meta) meta.innerHTML =
+    `<strong>Modelo:</strong> TF-IDF (${vocabSize.toLocaleString('es-CO')} términos) → LSA ` +
+    `(${lsaComp} componentes, ${pct(lsaVar)} % var. retenida) → k-means (K=${K}). ` +
+    `Corpus completo: ${nDocs.toLocaleString('es-CO')} reportes. ` +
+    `<em>Las dos componentes del gráfico retienen ${pct(varPC1+varPC2)} % de la varianza; ` +
+    `la proximidad visual es orientativa, no una medida de similitud.</em>`;
 
   const container = document.getElementById('cluster-info');
   container.innerHTML = clusterLabels.map((terms, ci) => `
@@ -1121,7 +1318,15 @@ function renderClustering() {
 }
 
 function renderRisk() {
-  const { dist, riskFactors, highRisk } = S.computed.risk;
+  const { dist, riskFactors, highRisk, cuts } = S.computed.risk;
+  const n1 = v => (Math.round(v*10)/10).toString().replace('.',',');
+  const rm = document.getElementById('risk-meta');
+  if (rm && cuts) rm.innerHTML =
+    `<strong>IRC v2.0 — calibración por cuantiles.</strong> Componentes normalizados y ponderados ` +
+    `(anomalías 0,35 · factores humanos 0,30 · severidad léxica 0,20 · fase crítica 0,15), escala 0–100. ` +
+    `Cortes empíricos: Medio ≥ ${n1(cuts.med)} (P50) · Alto ≥ ${n1(cuts.alto)} (P80) · ` +
+    `Crítico ≥ ${n1(cuts.crit)} (P95). <em>El IRC ordena reportes para priorizar revisión; ` +
+    `no estima probabilidad de consecuencia material.</em>`;
 
   const levels = ['LOW','MEDIUM','HIGH','CRITICAL'];
   const lvlLabels = ['Bajo','Medio','Alto','Crítico'];
@@ -1145,7 +1350,8 @@ function renderRisk() {
 
   const tbody = document.getElementById('risk-tbody');
   tbody.innerHTML = highRisk.map((s, i) => {
-    const narr = S.cols.narrative ? (s.row[S.cols.narrative]||'').slice(0,120)+'...' : 'N/D';
+    const nc = (S.cols.narrativeAll && S.cols.narrativeAll.length) ? S.cols.narrativeAll : [S.cols.narrative];
+    const narr = S.cols.narrative ? (nc.map(c=>s.row[c]||'').join(' ').trim().slice(0,120)+'…') : 'N/D';
     const anomalies = S.cols.anomaly.filter(c => (s.row[c]||'').trim()).map(c => c.split('.').slice(-1)[0]).slice(0,3).join(', ') || '—';
     const hfs = S.cols.hf.filter(c => (s.row[c]||'').trim()).map(c => c.split('.').slice(-1)[0]).slice(0,3).join(', ') || '—';
     return `<tr><td>${i+1}</td><td>${levelBadge[s.level]||s.level}</td><td style="font-family:var(--mono);font-size:.8rem">${s.score}</td><td style="font-size:.78rem">${anomalies}</td><td style="font-size:.78rem">${hfs}</td><td style="font-size:.78rem;color:#6b7280">${narr}</td></tr>`;
